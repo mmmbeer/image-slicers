@@ -20,6 +20,7 @@ class IconSheet {
     this.transformer = null;
     this.konvaImage = null;
     this.gridPreviewCanvas = null;
+    this.renderTimer = 0;
   }
 
   mount(root) {
@@ -140,6 +141,7 @@ class IconSheet {
   }
 
   unmount() {
+    clearTimeout(this.renderTimer);
     this.stage?.destroy();
     this.stage = null;
     this.root = null;
@@ -275,7 +277,10 @@ class IconSheet {
     ]);
     node.pixelSize(1);
     node.cache();
-    node.on("dragmove transform", () => this.syncControlsFromNode());
+    node.on("dragmove transform dragend transformend", () => {
+      this.syncControlsFromNode();
+      this.scheduleRender();
+    });
     this.layer.add(node);
     this.transformer.nodes([node]);
     this.layer.batchDraw();
@@ -285,8 +290,14 @@ class IconSheet {
   }
 
   onInputChanged() {
+    if (this.mode === "grid") this.normalizeGridControls();
     if (this.mode === "single") this.applySingleControls();
     this.render();
+  }
+
+  scheduleRender() {
+    clearTimeout(this.renderTimer);
+    this.renderTimer = setTimeout(() => this.render(), 80);
   }
 
   applySingleControls() {
@@ -369,6 +380,10 @@ class IconSheet {
   render() {
     this.warning.classList.remove("visible");
     this.warning.textContent = "";
+    if (!window.Konva) {
+      this.warning.textContent = "Konva did not load from the CDN. Single-icon editing is unavailable.";
+      this.warning.classList.add("visible");
+    }
     if (this.mode === "grid") this.drawGridPreview();
     this.renderExportPreview();
     this.context.setDirtyState();
@@ -432,24 +447,19 @@ class IconSheet {
     if (!this.stage || !this.konvaImage) return canvas;
     const previousTransformerVisible = this.transformer.visible();
     const previousGuideVisible = this.guideLayer.visible();
-    this.transformer.visible(false);
-    this.guideLayer.visible(false);
-    this.stage.draw();
-    const dataUrl = this.stage.toDataURL({ pixelRatio: size / STAGE_SIZE, mimeType: "image/png" });
-    const image = new Image();
-    image.onload = () => {
+    try {
+      this.transformer.visible(false);
+      this.guideLayer.visible(false);
+      this.stage.draw();
       const context = canvas.getContext("2d");
+      const exportCanvas = this.stage.toCanvas({ pixelRatio: size / STAGE_SIZE });
       context.clearRect(0, 0, size, size);
-      context.drawImage(image, 0, 0, size, size);
-    };
-    image.src = dataUrl;
-    const context = canvas.getContext("2d");
-    const exportCanvas = this.stage.toCanvas({ pixelRatio: size / STAGE_SIZE });
-    context.clearRect(0, 0, size, size);
-    context.drawImage(exportCanvas, 0, 0, size, size);
-    this.transformer.visible(previousTransformerVisible);
-    this.guideLayer.visible(previousGuideVisible);
-    this.stage.draw();
+      context.drawImage(exportCanvas, 0, 0, size, size);
+    } finally {
+      this.transformer.visible(previousTransformerVisible);
+      this.guideLayer.visible(previousGuideVisible);
+      this.stage.draw();
+    }
     return canvas;
   }
 
@@ -483,10 +493,17 @@ class IconSheet {
   getGrid() {
     const rows = this.clampInt(this.inputs.rows.value, 1, 64);
     const cols = this.clampInt(this.inputs.cols.value, 1, 64);
-    const spacing = this.clampInt(this.inputs.spacing.value, 0, Math.max(this.asset?.width || 0, this.asset?.height || 0));
-    const padding = this.clampInt(this.inputs.padding.value, 0, Math.max(this.asset?.width || 0, this.asset?.height || 0));
-    const availableWidth = Math.max(1, (this.asset?.width || 1) - padding * 2 - spacing * (cols - 1));
-    const availableHeight = Math.max(1, (this.asset?.height || 1) - padding * 2 - spacing * (rows - 1));
+    const sourceWidth = this.asset?.width || 1;
+    const sourceHeight = this.asset?.height || 1;
+    const maxPadding = Math.max(0, Math.floor((Math.min(sourceWidth, sourceHeight) - 1) / 2));
+    const padding = this.clampInt(this.inputs.padding.value, 0, maxPadding);
+    const spacingLimits = [];
+    if (cols > 1) spacingLimits.push(Math.floor((sourceWidth - padding * 2 - 1) / (cols - 1)));
+    if (rows > 1) spacingLimits.push(Math.floor((sourceHeight - padding * 2 - 1) / (rows - 1)));
+    const maxSpacing = Math.max(0, Math.min(...spacingLimits, Math.max(sourceWidth, sourceHeight)));
+    const spacing = this.clampInt(this.inputs.spacing.value, 0, maxSpacing);
+    const availableWidth = Math.max(1, sourceWidth - padding * 2 - spacing * (cols - 1));
+    const availableHeight = Math.max(1, sourceHeight - padding * 2 - spacing * (rows - 1));
     const cellWidth = Math.max(1, Math.floor(availableWidth / cols));
     const cellHeight = Math.max(1, Math.floor(availableHeight / rows));
     const cells = [];
@@ -502,6 +519,15 @@ class IconSheet {
       }
     }
     return { rows, cols, spacing, padding, cells };
+  }
+
+  normalizeGridControls() {
+    if (!this.asset) return;
+    const { rows, cols, spacing, padding } = this.getGrid();
+    this.inputs.rows.value = String(rows);
+    this.inputs.cols.value = String(cols);
+    this.inputs.spacing.value = String(spacing);
+    this.inputs.padding.value = String(padding);
   }
 
   getGridExportItems() {
