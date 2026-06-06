@@ -304,6 +304,7 @@ button:disabled {
 }
 
 .canvas-stage {
+  position: relative;
   min-height: 360px;
   overflow: auto;
   display: grid;
@@ -318,6 +319,41 @@ button:disabled {
   background-position: 0 0, 0 12px, 12px -12px, -12px 0;
   border: 1px solid var(--line);
   border-radius: 8px;
+}
+
+.grid-zoom-popover {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(220px, calc(100% - 16px));
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: rgba(13, 19, 27, 0.94);
+  box-shadow: var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 0);
+  transition: opacity 140ms ease;
+}
+
+.canvas-stage:hover .grid-zoom-popover,
+.grid-zoom-popover:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.grid-zoom-popover label {
+  color: #c8d4df;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.grid-zoom-popover input {
+  min-width: 0;
+  flex: 1;
 }
 
 canvas {

@@ -257,17 +257,45 @@ async function runSmoke() {
       document.querySelector('[data-role="cols"]').value = "3";
       document.querySelector('[data-role="cols"]').dispatchEvent(new Event("input", { bubbles: true }));
       await wait(300);
-      assert(document.querySelector('[data-role="grid-preview"]').width > 0, "grid preview did not render");
-      document.querySelector('[data-role="cell"]').value = "2";
-      document.querySelector('[data-role="cell"]').dispatchEvent(new Event("change", { bubbles: true }));
-      document.querySelector('[data-role="cell-x"]').value = "20";
-      document.querySelector('[data-role="cell-x"]').dispatchEvent(new Event("input", { bubbles: true }));
-      document.querySelector('[data-role="cell-y"]').value = "-15";
-      document.querySelector('[data-role="cell-y"]').dispatchEvent(new Event("input", { bubbles: true }));
+      const gridPreview = document.querySelector('[data-role="grid-preview"]');
+      assert(gridPreview.width > 0, "grid preview did not render");
+      assert(!document.querySelector('[data-role="cell"]'), "grid selected-cell menu was not removed");
+      const gridPoint = (sourceX, sourceY) => {
+        const rect = gridPreview.getBoundingClientRect();
+        return {
+          x: rect.left + (sourceX / 96) * rect.width,
+          y: rect.top + (sourceY / 72) * rect.height,
+        };
+      };
+      const pointer = (type, point) => gridPreview.dispatchEvent(new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 7,
+        clientX: point.x,
+        clientY: point.y,
+      }));
+      const cell2Center = gridPoint(48, 18);
+      pointer("pointerdown", cell2Center);
+      pointer("pointerup", cell2Center);
+      await wait(100);
+      assert(!document.querySelector('[data-role="grid-zoom-popover"]').hidden, "cell click did not select a grid cell");
+      const cell2Drag = gridPoint(58, 24);
+      pointer("pointerdown", cell2Center);
+      pointer("pointermove", cell2Drag);
+      pointer("pointerup", cell2Drag);
       document.querySelector('[data-role="cell-zoom"]').value = "1.5";
       document.querySelector('[data-role="cell-zoom"]').dispatchEvent(new Event("input", { bubbles: true }));
       await wait(300);
-      assert(document.querySelector('[data-role="cell"]').value === "2", "grid cell selector did not hold selected cell");
+      pointer("pointerdown", cell2Center);
+      pointer("pointerup", cell2Center);
+      await wait(100);
+      assert(document.querySelector('[data-role="grid-zoom-popover"]').hidden, "clicking selected grid cell did not unselect it");
+      const globalStart = gridPoint(16, 18);
+      const globalEnd = gridPoint(24, 20);
+      pointer("pointerdown", globalStart);
+      pointer("pointermove", globalEnd);
+      pointer("pointerup", globalEnd);
+      await wait(100);
       document.getElementById("zipButton").click();
       await wait(800);
       assert(downloads.some((item) => item.filename.endsWith("_icon-sheet.zip") && item.size > 100), "icon sheet grid ZIP export missing");

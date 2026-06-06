@@ -21,7 +21,9 @@ class IconSheet {
     this.konvaImage = null;
     this.gridPreviewCanvas = null;
     this.gridAdjustments = new Map();
-    this.selectedCellIndex = 1;
+    this.gridBaseAdjustment = { offsetX: 0, offsetY: 0 };
+    this.selectedCellIndex = null;
+    this.gridDrag = null;
     this.renderTimer = 0;
   }
 
@@ -37,6 +39,10 @@ class IconSheet {
           <div class="canvas-stage">
             <div data-role="konva-stage" style="width:${STAGE_SIZE}px; height:${STAGE_SIZE}px;"></div>
             <canvas data-role="grid-preview" hidden></canvas>
+            <div class="grid-zoom-popover" data-role="grid-zoom-popover" hidden>
+              <label for="is-cell-zoom">Zoom</label>
+              <input id="is-cell-zoom" data-role="cell-zoom" type="range" min="0.5" max="4" step="0.01" value="1" />
+            </div>
           </div>
           <div class="panel" style="padding: 12px;">
             <div class="pane-title">
@@ -103,16 +109,7 @@ class IconSheet {
               <div class="field"><label for="is-spacing">Spacing</label><input id="is-spacing" data-role="spacing" type="number" min="0" step="1" value="0" /></div>
               <div class="field"><label for="is-padding">Padding</label><input id="is-padding" data-role="padding" type="number" min="0" step="1" value="0" /></div>
             </div>
-            <h3 style="margin-top: 14px;">Selected Cell</h3>
-            <div class="field">
-              <label for="is-cell">Cell</label>
-              <select id="is-cell" data-role="cell"></select>
-            </div>
-            <div class="field"><label for="is-cell-x">Source X offset</label><input id="is-cell-x" data-role="cell-x" type="range" min="-100" max="100" step="1" value="0" /></div>
-            <div class="field"><label for="is-cell-y">Source Y offset</label><input id="is-cell-y" data-role="cell-y" type="range" min="-100" max="100" step="1" value="0" /></div>
-            <div class="field"><label for="is-cell-zoom">Source zoom</label><input id="is-cell-zoom" data-role="cell-zoom" type="range" min="0.5" max="4" step="0.01" value="1" /></div>
             <div class="button-row">
-              <button data-action="reset-cell" type="button">Reset Cell</button>
               <button data-action="reset-cells" type="button">Reset All Cells</button>
             </div>
           </div>
@@ -123,6 +120,7 @@ class IconSheet {
 
     this.stageContainer = root.querySelector('[data-role="konva-stage"]');
     this.gridPreviewCanvas = root.querySelector('[data-role="grid-preview"]');
+    this.gridZoomPopover = root.querySelector('[data-role="grid-zoom-popover"]');
     this.sourceInfo = root.querySelector('[data-role="source-info"]');
     this.previewTitle = root.querySelector('[data-role="preview-title"]');
     this.previewRoot = root.querySelector('[data-role="previews"]');
@@ -147,15 +145,11 @@ class IconSheet {
       cols: root.querySelector('[data-role="cols"]'),
       spacing: root.querySelector('[data-role="spacing"]'),
       padding: root.querySelector('[data-role="padding"]'),
-      cell: root.querySelector('[data-role="cell"]'),
-      cellX: root.querySelector('[data-role="cell-x"]'),
-      cellY: root.querySelector('[data-role="cell-y"]'),
       cellZoom: root.querySelector('[data-role="cell-zoom"]'),
     };
 
     this.setupKonva();
     this.bindEvents();
-    this.syncCellSelectorOptions();
     this.render();
   }
 
@@ -181,9 +175,9 @@ class IconSheet {
     this.inputs.spacing.value = "0";
     this.inputs.padding.value = "0";
     this.gridAdjustments.clear();
-    this.selectedCellIndex = 1;
-    this.loadActiveCellAdjustment();
-    this.syncCellSelectorOptions();
+    this.gridBaseAdjustment = { offsetX: 0, offsetY: 0 };
+    this.selectedCellIndex = null;
+    this.loadActiveCellZoom();
     this.render();
   }
 
@@ -250,21 +244,19 @@ class IconSheet {
       this.customSizeWrap.hidden = this.inputs.size.value !== "custom";
       this.render();
     });
-    for (const input of Object.values(this.inputs).filter((item) => item !== this.inputs.cell)) {
+    for (const input of Object.values(this.inputs)) {
       input.addEventListener("input", () => this.onInputChanged());
       input.addEventListener("change", () => this.onInputChanged());
     }
-    this.inputs.cell.addEventListener("change", () => {
-      this.selectedCellIndex = this.clampInt(this.inputs.cell.value, 1, this.getGrid().cells.length);
-      this.loadActiveCellAdjustment();
-      this.render();
-    });
+    this.gridPreviewCanvas.addEventListener("pointerdown", (event) => this.onGridPointerDown(event));
+    this.gridPreviewCanvas.addEventListener("pointermove", (event) => this.onGridPointerMove(event));
+    this.gridPreviewCanvas.addEventListener("pointerup", (event) => this.onGridPointerUp(event));
+    this.gridPreviewCanvas.addEventListener("pointercancel", (event) => this.onGridPointerCancel(event));
     this.root.querySelector('[data-action="flip-x"]').addEventListener("click", () => this.flip("x"));
     this.root.querySelector('[data-action="flip-y"]').addEventListener("click", () => this.flip("y"));
     this.root.querySelector('[data-action="rotate-90"]').addEventListener("click", () => this.rotate90());
     this.root.querySelector('[data-action="center"]').addEventListener("click", () => this.centerImage());
     this.root.querySelector('[data-action="reset"]').addEventListener("click", () => this.resetSingleTransform());
-    this.root.querySelector('[data-action="reset-cell"]').addEventListener("click", () => this.resetActiveCellAdjustment());
     this.root.querySelector('[data-action="reset-cells"]').addEventListener("click", () => this.resetAllCellAdjustments());
   }
 
@@ -277,6 +269,8 @@ class IconSheet {
     this.gridControls.hidden = mode !== "grid";
     this.stageContainer.hidden = mode !== "single";
     this.gridPreviewCanvas.hidden = mode !== "grid";
+    if (mode !== "grid") this.gridZoomPopover.hidden = true;
+    else this.loadActiveCellZoom();
     this.previewTitle.textContent = mode === "single" ? "Single Icon" : "Grid Extraction";
     this.render();
   }
@@ -322,8 +316,7 @@ class IconSheet {
   onInputChanged() {
     if (this.mode === "grid") {
       this.normalizeGridControls();
-      this.syncCellSelectorOptions();
-      this.saveActiveCellAdjustment();
+      this.saveActiveCellZoom();
     }
     if (this.mode === "single") this.applySingleControls();
     this.render();
@@ -519,16 +512,26 @@ class IconSheet {
       const y = cell.y * fit.scale;
       const w = cell.width * fit.scale;
       const h = cell.height * fit.scale;
+      const source = this.getAdjustedSourceRect(cell);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+      ctx.drawImage(this.asset.image, source.x, source.y, source.width, source.height, x, y, w, h);
       ctx.fillRect(x, y, w, h);
+      ctx.restore();
       ctx.strokeRect(x, y, w, h);
       if (cell.index === this.selectedCellIndex) {
         ctx.save();
         ctx.strokeStyle = "#a6e3a1";
         ctx.lineWidth = 3;
         ctx.strokeRect(x + 1, y + 1, Math.max(1, w - 2), Math.max(1, h - 2));
+        ctx.fillStyle = "rgba(166, 227, 161, 0.16)";
+        ctx.fillRect(x, y, w, h);
         ctx.restore();
       }
     }
+    this.positionGridZoomPopover(grid, fit);
   }
 
   getGrid() {
@@ -570,53 +573,165 @@ class IconSheet {
     this.inputs.spacing.value = String(spacing);
     this.inputs.padding.value = String(padding);
     const cellCount = rows * cols;
-    this.selectedCellIndex = this.clampInt(this.selectedCellIndex, 1, cellCount);
-  }
-
-  syncCellSelectorOptions() {
-    const grid = this.getGrid();
-    const current = this.clampInt(this.selectedCellIndex, 1, grid.cells.length);
-    if (this.inputs.cell.options.length !== grid.cells.length) {
-      this.inputs.cell.innerHTML = grid.cells.map((cell) => (
-        `<option value="${cell.index}">Cell ${String(cell.index).padStart(2, "0")}</option>`
-      )).join("");
+    if (this.selectedCellIndex && this.selectedCellIndex > cellCount) {
+      this.selectedCellIndex = null;
+      this.loadActiveCellZoom();
     }
-    this.selectedCellIndex = current;
-    this.inputs.cell.value = String(current);
   }
 
   getCellAdjustment(index) {
     return this.gridAdjustments.get(index) || { offsetX: 0, offsetY: 0, zoom: 1 };
   }
 
-  saveActiveCellAdjustment() {
-    const offsetX = this.clampNumber(this.inputs.cellX.value, -100, 100);
-    const offsetY = this.clampNumber(this.inputs.cellY.value, -100, 100);
-    const zoom = this.clampNumber(this.inputs.cellZoom.value, 0.5, 4);
+  setCellAdjustment(index, adjustment) {
+    const offsetX = this.clampNumber(adjustment.offsetX, -100, 100);
+    const offsetY = this.clampNumber(adjustment.offsetY, -100, 100);
+    const zoom = this.clampNumber(adjustment.zoom, 0.5, 4);
     if (offsetX === 0 && offsetY === 0 && zoom === 1) {
-      this.gridAdjustments.delete(this.selectedCellIndex);
+      this.gridAdjustments.delete(index);
       return;
     }
-    this.gridAdjustments.set(this.selectedCellIndex, { offsetX, offsetY, zoom });
+    this.gridAdjustments.set(index, { offsetX, offsetY, zoom });
   }
 
-  loadActiveCellAdjustment() {
-    const adjustment = this.getCellAdjustment(this.selectedCellIndex);
-    this.inputs.cellX.value = String(adjustment.offsetX);
-    this.inputs.cellY.value = String(adjustment.offsetY);
+  saveActiveCellZoom() {
+    if (!this.selectedCellIndex) return;
+    const current = this.getCellAdjustment(this.selectedCellIndex);
+    const zoom = this.clampNumber(this.inputs.cellZoom.value, 0.5, 4);
+    this.setCellAdjustment(this.selectedCellIndex, { ...current, zoom });
+  }
+
+  loadActiveCellZoom() {
+    const adjustment = this.selectedCellIndex ? this.getCellAdjustment(this.selectedCellIndex) : { zoom: 1 };
     this.inputs.cellZoom.value = String(adjustment.zoom);
-  }
-
-  resetActiveCellAdjustment() {
-    this.gridAdjustments.delete(this.selectedCellIndex);
-    this.loadActiveCellAdjustment();
-    this.render();
+    this.gridZoomPopover.hidden = !this.selectedCellIndex;
   }
 
   resetAllCellAdjustments() {
     this.gridAdjustments.clear();
-    this.loadActiveCellAdjustment();
+    this.gridBaseAdjustment = { offsetX: 0, offsetY: 0 };
+    this.loadActiveCellZoom();
     this.render();
+  }
+
+  onGridPointerDown(event) {
+    if (this.mode !== "grid" || !this.asset) return;
+    const hit = this.getGridCellAtPointer(event);
+    if (!hit) return;
+    try {
+      this.gridPreviewCanvas.setPointerCapture(event.pointerId);
+    } catch {
+      // Synthetic pointer events used by smoke tests may not have a live pointer capture target.
+    }
+    this.gridDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      moved: false,
+      cellIndex: hit.cell.index,
+      target: this.selectedCellIndex ? (hit.cell.index === this.selectedCellIndex ? "cell" : "none") : "all",
+    };
+  }
+
+  onGridPointerMove(event) {
+    if (!this.gridDrag || this.gridDrag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - this.gridDrag.lastX;
+    const dy = event.clientY - this.gridDrag.lastY;
+    const totalDx = event.clientX - this.gridDrag.startX;
+    const totalDy = event.clientY - this.gridDrag.startY;
+    if (Math.hypot(totalDx, totalDy) < 3) return;
+    this.gridDrag.moved = true;
+    this.gridDrag.lastX = event.clientX;
+    this.gridDrag.lastY = event.clientY;
+    const scale = this.getGridPreviewFit()?.scale || 1;
+    const sourceDx = dx / scale;
+    const sourceDy = dy / scale;
+    if (this.gridDrag.target === "cell" && this.selectedCellIndex) {
+      this.nudgeCellAdjustment(this.selectedCellIndex, sourceDx, sourceDy);
+    } else if (this.gridDrag.target === "all") {
+      this.nudgeBaseGridAdjustment(sourceDx, sourceDy);
+    }
+    this.render();
+  }
+
+  onGridPointerUp(event) {
+    if (!this.gridDrag || this.gridDrag.pointerId !== event.pointerId) return;
+    const drag = this.gridDrag;
+    this.gridDrag = null;
+    if (this.gridPreviewCanvas.hasPointerCapture?.(event.pointerId)) {
+      this.gridPreviewCanvas.releasePointerCapture(event.pointerId);
+    }
+    if (drag.moved) return;
+    this.selectedCellIndex = this.selectedCellIndex === drag.cellIndex ? null : drag.cellIndex;
+    this.loadActiveCellZoom();
+    this.render();
+  }
+
+  onGridPointerCancel(event) {
+    if (!this.gridDrag || this.gridDrag.pointerId !== event.pointerId) return;
+    this.gridDrag = null;
+    if (this.gridPreviewCanvas.hasPointerCapture?.(event.pointerId)) {
+      this.gridPreviewCanvas.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  nudgeCellAdjustment(index, sourceDx, sourceDy) {
+    const cell = this.getGrid().cells.find((item) => item.index === index);
+    if (!cell) return;
+    const current = this.getCellAdjustment(index);
+    this.setCellAdjustment(index, {
+      ...current,
+      offsetX: current.offsetX - (sourceDx / cell.width) * 100,
+      offsetY: current.offsetY - (sourceDy / cell.height) * 100,
+    });
+  }
+
+  nudgeBaseGridAdjustment(sourceDx, sourceDy) {
+    const grid = this.getGrid();
+    const cell = grid.cells[0];
+    if (!cell) return;
+    this.gridBaseAdjustment = {
+      offsetX: this.clampNumber(this.gridBaseAdjustment.offsetX - (sourceDx / cell.width) * 100, -100, 100),
+      offsetY: this.clampNumber(this.gridBaseAdjustment.offsetY - (sourceDy / cell.height) * 100, -100, 100),
+    };
+  }
+
+  getGridPreviewFit() {
+    if (!this.asset) return null;
+    return this.context.canvasUtils.fitSize(this.asset.width, this.asset.height, 960, 620);
+  }
+
+  getGridCellAtPointer(event) {
+    const fit = this.getGridPreviewFit();
+    if (!fit) return null;
+    const rect = this.gridPreviewCanvas.getBoundingClientRect();
+    const sourceX = ((event.clientX - rect.left) / rect.width) * this.asset.width;
+    const sourceY = ((event.clientY - rect.top) / rect.height) * this.asset.height;
+    const cell = this.getGrid().cells.find((item) => (
+      sourceX >= item.x
+      && sourceX <= item.x + item.width
+      && sourceY >= item.y
+      && sourceY <= item.y + item.height
+    ));
+    return cell ? { cell, fit } : null;
+  }
+
+  positionGridZoomPopover(grid, fit) {
+    this.gridZoomPopover.hidden = !this.selectedCellIndex;
+    if (!this.selectedCellIndex) return;
+    const cell = grid.cells.find((item) => item.index === this.selectedCellIndex);
+    if (!cell) return;
+    const stageRect = this.gridPreviewCanvas.parentElement.getBoundingClientRect();
+    const canvasRect = this.gridPreviewCanvas.getBoundingClientRect();
+    const canvasLeft = canvasRect.left - stageRect.left;
+    const canvasTop = canvasRect.top - stageRect.top;
+    const x = cell.x * fit.scale;
+    const y = cell.y * fit.scale;
+    const w = cell.width * fit.scale;
+    this.gridZoomPopover.style.left = `${Math.max(8, canvasLeft + x + w / 2)}px`;
+    this.gridZoomPopover.style.top = `${Math.max(8, canvasTop + y + 8)}px`;
   }
 
   getGridExportItems() {
@@ -644,7 +759,12 @@ class IconSheet {
   }
 
   getAdjustedSourceRect(cell) {
-    const adjustment = this.getCellAdjustment(cell.index);
+    const cellAdjustment = this.getCellAdjustment(cell.index);
+    const adjustment = {
+      offsetX: this.gridBaseAdjustment.offsetX + cellAdjustment.offsetX,
+      offsetY: this.gridBaseAdjustment.offsetY + cellAdjustment.offsetY,
+      zoom: cellAdjustment.zoom,
+    };
     const zoom = Math.max(0.5, adjustment.zoom || 1);
     const width = Math.max(1, Math.min(this.asset.width, cell.width / zoom));
     const height = Math.max(1, Math.min(this.asset.height, cell.height / zoom));
