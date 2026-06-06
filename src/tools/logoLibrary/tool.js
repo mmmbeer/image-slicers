@@ -1,3 +1,6 @@
+import { clampNumber } from "../../core/math.js";
+import { bindInputEvents, createPreviewCard, role, roles } from "../../ui/dom.js";
+
 const LOGO_SIZES = [
   { size: 16, label: "Favicon 16" },
   { size: 32, label: "Favicon 32" },
@@ -80,20 +83,17 @@ class LogoLibrary {
       </div>
     `;
 
-    this.sourceInfo = root.querySelector('[data-role="source-info"]');
-    this.previewRoot = root.querySelector('[data-role="previews"]');
-    this.exportCount = root.querySelector('[data-role="export-count"]');
+    this.sourceInfo = role(root, "source-info");
+    this.previewRoot = role(root, "previews");
+    this.exportCount = role(root, "export-count");
     this.inputs = {
-      prefix: root.querySelector('[data-role="prefix"]'),
-      fit: root.querySelector('[data-role="fit"]'),
-      padding: root.querySelector('[data-role="padding"]'),
-      sizes: [...root.querySelectorAll('[data-role="logo-size"]')],
+      prefix: role(root, "prefix"),
+      fit: role(root, "fit"),
+      padding: role(root, "padding"),
+      sizes: roles(root, "logo-size"),
     };
 
-    for (const input of [this.inputs.prefix, this.inputs.fit, this.inputs.padding, ...this.inputs.sizes]) {
-      input.addEventListener("input", () => this.render());
-      input.addEventListener("change", () => this.render());
-    }
+    bindInputEvents([this.inputs.prefix, this.inputs.fit, this.inputs.padding, ...this.inputs.sizes], () => this.render());
     this.render();
   }
 
@@ -139,7 +139,7 @@ class LogoLibrary {
     if (!this.asset) return;
 
     for (const size of sizes) {
-      const card = this.createPreviewCard(`${this.filePrefix()}${size}x${size}.png`, `${size}px`);
+      const card = createPreviewCard(`${this.filePrefix()}${size}x${size}.png`, `${size}px`);
       const canvas = document.createElement("canvas");
       canvas.width = 96;
       canvas.height = 96;
@@ -149,16 +149,6 @@ class LogoLibrary {
     }
   }
 
-  createPreviewCard(label, tag) {
-    const card = document.createElement("div");
-    card.className = "preview-card";
-    const title = document.createElement("div");
-    title.className = "thumb-title";
-    title.innerHTML = `<span>${label}</span><span class="tag">${tag}</span>`;
-    card.append(title);
-    return card;
-  }
-
   renderLogoToCanvas(canvas, size) {
     canvas.width = size;
     canvas.height = size;
@@ -166,7 +156,7 @@ class LogoLibrary {
     ctx.clearRect(0, 0, size, size);
     if (!this.asset) return canvas;
 
-    const padding = Math.round(size * this.clampNumber(this.inputs.padding.value, 0, 40) / 100);
+    const padding = Math.round(size * clampNumber(this.inputs.padding.value, 0, 40) / 100);
     const targetSize = Math.max(1, size - padding * 2);
     const fit = this.inputs.fit.value;
     if (fit === "stretch") {
@@ -190,10 +180,6 @@ class LogoLibrary {
       .filter((input) => input.checked)
       .map((input) => Number(input.value))
       .filter((size) => Number.isFinite(size) && size > 0);
-  }
-
-  clampNumber(value, min, max) {
-    return Math.max(min, Math.min(max, Number(value || min)));
   }
 
   filePrefix() {

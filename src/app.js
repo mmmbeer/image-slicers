@@ -5,6 +5,7 @@ import { getTool, getTools, registerTool } from "./toolRegistry.js";
 import { nineSlicerTool } from "./tools/nineSlicer/tool.js";
 import { iconSheetTool } from "./tools/iconSheet/tool.js";
 import { logoLibraryTool } from "./tools/logoLibrary/tool.js";
+import { createToast } from "./ui/toast.js";
 
 registerTool(nineSlicerTool);
 registerTool(iconSheetTool);
@@ -25,7 +26,7 @@ const toast = document.getElementById("toast");
 let activeTool = null;
 let activeInstance = null;
 let currentAsset = null;
-let toastTimer = 0;
+const toastService = createToast(toast);
 
 const context = {
   imageLoader: { loadImageFile },
@@ -36,10 +37,7 @@ const context = {
 };
 
 function notify(message) {
-  clearTimeout(toastTimer);
-  toast.textContent = message;
-  toast.classList.add("visible");
-  toastTimer = setTimeout(() => toast.classList.remove("visible"), 2800);
+  toastService.show(message);
 }
 
 function renderNav() {

@@ -1,14 +1,11 @@
 function showAlert(message, type = 'success') {
   const existing = document.getElementById('upload-alert');
   if (existing) existing.remove();
-
   const alert = document.createElement('div');
   alert.id = 'upload-alert';
   alert.className = `upload-alert ${type}`;
   alert.textContent = message;
-
   document.body.appendChild(alert);
-
   setTimeout(() => {
     alert.style.opacity = '0';
     setTimeout(() => alert.remove(), 1000);
@@ -23,20 +20,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const tagHidden = document.getElementById('tag-hidden');
   const suggestionsBox = document.getElementById('tag-suggestions');
   const selectedTagsBox = document.getElementById('selected-tags');
-
   const stage = new Konva.Stage({
     container: 'canvas-container',
     width: 256,
     height: 256
   });
-
   const layer = new Konva.Layer();
   stage.add(layer);
   let konvaImage = null;
-  
   let originalWidth = 0;
 let originalHeight = 0;
-
   const guideLayer = new Konva.Layer();
   guideLayer.add(new Konva.Line({
     points: [128, 0, 128, 256],
@@ -55,14 +48,11 @@ let originalHeight = 0;
   uploadInput.addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
-
   const reader = new FileReader();
   reader.onload = function (evt) {
     const img = new Image();
     img.onload = function () {
       const dataUrl = evt.target.result;
-
-
       Konva.Image.fromURL(dataUrl, (imgNode) => {
         if (konvaImage) konvaImage.destroy();
         konvaImage = imgNode;
@@ -96,9 +86,6 @@ let originalHeight = 0;
         konvaImage.offsetY(konvaImage.height() / 2);
         konvaImage.x(128);
         konvaImage.y(128);
-
-
-
         konvaImage.on('dragmove', () => {
           const topLeftX = konvaImage.offsetX() - konvaImage.x();
           const topLeftY = konvaImage.offsetY() - konvaImage.y();
@@ -127,8 +114,6 @@ let originalHeight = 0;
   };
   reader.readAsDataURL(file);
 });
-
-
   const availableTags = window.availableTags;
   const allTags = [];
   for (const category in availableTags) {
@@ -136,18 +121,14 @@ let originalHeight = 0;
       allTags.push({ id: tag.id, label: `${category}: ${tag.name}` });
     });
   }
-
   const selectedTagIds = new Set();
-
   tagInput.addEventListener('input', () => {
     const query = tagInput.value.toLowerCase();
     suggestionsBox.innerHTML = '';
     if (!query) return;
-
     const matches = allTags.filter(t =>
       t.label.toLowerCase().includes(query) && !selectedTagIds.has(t.id)
     );
-
     matches.slice(0, 8).forEach(tag => {
       const div = document.createElement('div');
       div.textContent = tag.label;
@@ -164,7 +145,6 @@ let originalHeight = 0;
   function updateSelectedTags() {
     selectedTagsBox.innerHTML = '';
     tagHidden.value = Array.from(selectedTagIds).join(',');
-
     allTags.forEach(tag => {
       if (selectedTagIds.has(tag.id)) {
         const badge = document.createElement('div');
@@ -178,7 +158,6 @@ let originalHeight = 0;
       }
     });
   }
-
   const form = document.getElementById('icon-form');
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -195,19 +174,14 @@ let originalHeight = 0;
     formData.append('cropX', cropXInput.value);
     formData.append('cropY', cropYInput.value);
     formData.append('tags', Array.from(selectedTagIds).join(','));
-	
 	const scaleSlider = document.getElementById('scale-slider');
 formData.append('scale', scaleSlider?.value || 0);
-	
 	formData.append('style', document.getElementById('style-select')?.value || 'fantasy');
-
-
     try {
       const response = await fetch('/import/save', {
         method: 'POST',
         body: formData
       });
-
       const result = await response.json();
       if (result.success) {
         showAlert(`Icon "${result.filename}" saved successfully.`, 'success');
@@ -219,7 +193,6 @@ formData.append('scale', scaleSlider?.value || 0);
       showAlert('Upload failed. Please try again.', 'error');
     }
   });
-
   const sliders = {
     brightness: document.getElementById('brightness'),
     contrast: document.getElementById('contrast'),
@@ -228,23 +201,19 @@ formData.append('scale', scaleSlider?.value || 0);
     blur: document.getElementById('blur'),
     pixel: document.getElementById('pixel')
   };
-
   Object.entries(sliders).forEach(([filterName, input]) => {
     input.addEventListener('input', () => {
       if (!konvaImage) return;
-
       konvaImage.brightness(parseFloat(sliders.brightness.value));
       konvaImage.contrast(parseFloat(sliders.contrast.value));
       konvaImage.saturation(parseFloat(sliders.saturation.value));
       konvaImage.hue(parseFloat(sliders.hue.value));
       konvaImage.blurRadius(parseFloat(sliders.blur.value));
       konvaImage.pixelSize(parseInt(sliders.pixel.value));
-
       konvaImage.cache();
       layer.batchDraw();
     });
   });
-
   document.getElementById('flip-x').addEventListener('click', () => {
     if (konvaImage) {
       konvaImage.scaleX(konvaImage.scaleX() * -1);
@@ -252,7 +221,6 @@ formData.append('scale', scaleSlider?.value || 0);
       layer.batchDraw();
     }
   });
-
   document.getElementById('flip-y').addEventListener('click', () => {
     if (konvaImage) {
       konvaImage.scaleY(konvaImage.scaleY() * -1);
@@ -260,7 +228,6 @@ formData.append('scale', scaleSlider?.value || 0);
       layer.batchDraw();
     }
   });
-
   document.getElementById('rotate-90').addEventListener('click', () => {
     if (konvaImage) {
       konvaImage.rotate(90);
@@ -268,7 +235,6 @@ formData.append('scale', scaleSlider?.value || 0);
       layer.batchDraw();
     }
   });
-
   document.getElementById('center-image').addEventListener('click', () => {
     if (konvaImage) {
       konvaImage.x(128);
@@ -278,7 +244,6 @@ formData.append('scale', scaleSlider?.value || 0);
       layer.draw();
     }
   });
-
   document.getElementById('reset-image').addEventListener('click', () => {
     if (konvaImage) {
       konvaImage.rotation(0);
@@ -289,7 +254,6 @@ formData.append('scale', scaleSlider?.value || 0);
       konvaImage.y(128);
       cropXInput.value = 0;
       cropYInput.value = 0;
-
       konvaImage.brightness(0);
       konvaImage.contrast(0);
       konvaImage.saturation(0);
@@ -303,11 +267,8 @@ formData.append('scale', scaleSlider?.value || 0);
       sliders.hue.value = 0;
       sliders.blur.value = 0;
       sliders.pixel.value = 1;
-
       konvaImage.cache();
       layer.batchDraw();
     }
   });
-  
-
 });
