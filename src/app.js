@@ -4,9 +4,11 @@ import * as canvasUtils from "./core/canvas.js";
 import { getTool, getTools, registerTool } from "./toolRegistry.js";
 import { nineSlicerTool } from "./tools/nineSlicer/tool.js";
 import { iconSheetTool } from "./tools/iconSheet/tool.js";
+import { logoLibraryTool } from "./tools/logoLibrary/tool.js";
 
 registerTool(nineSlicerTool);
 registerTool(iconSheetTool);
+registerTool(logoLibraryTool);
 
 const nav = document.getElementById("toolNav");
 const root = document.getElementById("toolRoot");

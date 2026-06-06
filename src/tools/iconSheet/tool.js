@@ -20,6 +20,8 @@ class IconSheet {
     this.transformer = null;
     this.konvaImage = null;
     this.gridPreviewCanvas = null;
+    this.gridAdjustments = new Map();
+    this.selectedCellIndex = 1;
     this.renderTimer = 0;
   }
 
@@ -101,6 +103,18 @@ class IconSheet {
               <div class="field"><label for="is-spacing">Spacing</label><input id="is-spacing" data-role="spacing" type="number" min="0" step="1" value="0" /></div>
               <div class="field"><label for="is-padding">Padding</label><input id="is-padding" data-role="padding" type="number" min="0" step="1" value="0" /></div>
             </div>
+            <h3 style="margin-top: 14px;">Selected Cell</h3>
+            <div class="field">
+              <label for="is-cell">Cell</label>
+              <select id="is-cell" data-role="cell"></select>
+            </div>
+            <div class="field"><label for="is-cell-x">Source X offset</label><input id="is-cell-x" data-role="cell-x" type="range" min="-100" max="100" step="1" value="0" /></div>
+            <div class="field"><label for="is-cell-y">Source Y offset</label><input id="is-cell-y" data-role="cell-y" type="range" min="-100" max="100" step="1" value="0" /></div>
+            <div class="field"><label for="is-cell-zoom">Source zoom</label><input id="is-cell-zoom" data-role="cell-zoom" type="range" min="0.5" max="4" step="0.01" value="1" /></div>
+            <div class="button-row">
+              <button data-action="reset-cell" type="button">Reset Cell</button>
+              <button data-action="reset-cells" type="button">Reset All Cells</button>
+            </div>
           </div>
           <div class="warning" data-role="warning"></div>
         </aside>
@@ -133,10 +147,15 @@ class IconSheet {
       cols: root.querySelector('[data-role="cols"]'),
       spacing: root.querySelector('[data-role="spacing"]'),
       padding: root.querySelector('[data-role="padding"]'),
+      cell: root.querySelector('[data-role="cell"]'),
+      cellX: root.querySelector('[data-role="cell-x"]'),
+      cellY: root.querySelector('[data-role="cell-y"]'),
+      cellZoom: root.querySelector('[data-role="cell-zoom"]'),
     };
 
     this.setupKonva();
     this.bindEvents();
+    this.syncCellSelectorOptions();
     this.render();
   }
 
@@ -161,6 +180,10 @@ class IconSheet {
     this.inputs.cols.value = "3";
     this.inputs.spacing.value = "0";
     this.inputs.padding.value = "0";
+    this.gridAdjustments.clear();
+    this.selectedCellIndex = 1;
+    this.loadActiveCellAdjustment();
+    this.syncCellSelectorOptions();
     this.render();
   }
 
@@ -227,15 +250,22 @@ class IconSheet {
       this.customSizeWrap.hidden = this.inputs.size.value !== "custom";
       this.render();
     });
-    for (const input of Object.values(this.inputs)) {
+    for (const input of Object.values(this.inputs).filter((item) => item !== this.inputs.cell)) {
       input.addEventListener("input", () => this.onInputChanged());
       input.addEventListener("change", () => this.onInputChanged());
     }
+    this.inputs.cell.addEventListener("change", () => {
+      this.selectedCellIndex = this.clampInt(this.inputs.cell.value, 1, this.getGrid().cells.length);
+      this.loadActiveCellAdjustment();
+      this.render();
+    });
     this.root.querySelector('[data-action="flip-x"]').addEventListener("click", () => this.flip("x"));
     this.root.querySelector('[data-action="flip-y"]').addEventListener("click", () => this.flip("y"));
     this.root.querySelector('[data-action="rotate-90"]').addEventListener("click", () => this.rotate90());
     this.root.querySelector('[data-action="center"]').addEventListener("click", () => this.centerImage());
     this.root.querySelector('[data-action="reset"]').addEventListener("click", () => this.resetSingleTransform());
+    this.root.querySelector('[data-action="reset-cell"]').addEventListener("click", () => this.resetActiveCellAdjustment());
+    this.root.querySelector('[data-action="reset-cells"]').addEventListener("click", () => this.resetAllCellAdjustments());
   }
 
   setMode(mode) {
@@ -290,7 +320,11 @@ class IconSheet {
   }
 
   onInputChanged() {
-    if (this.mode === "grid") this.normalizeGridControls();
+    if (this.mode === "grid") {
+      this.normalizeGridControls();
+      this.syncCellSelectorOptions();
+      this.saveActiveCellAdjustment();
+    }
     if (this.mode === "single") this.applySingleControls();
     this.render();
   }
@@ -487,6 +521,13 @@ class IconSheet {
       const h = cell.height * fit.scale;
       ctx.fillRect(x, y, w, h);
       ctx.strokeRect(x, y, w, h);
+      if (cell.index === this.selectedCellIndex) {
+        ctx.save();
+        ctx.strokeStyle = "#a6e3a1";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x + 1, y + 1, Math.max(1, w - 2), Math.max(1, h - 2));
+        ctx.restore();
+      }
     }
   }
 
@@ -528,6 +569,54 @@ class IconSheet {
     this.inputs.cols.value = String(cols);
     this.inputs.spacing.value = String(spacing);
     this.inputs.padding.value = String(padding);
+    const cellCount = rows * cols;
+    this.selectedCellIndex = this.clampInt(this.selectedCellIndex, 1, cellCount);
+  }
+
+  syncCellSelectorOptions() {
+    const grid = this.getGrid();
+    const current = this.clampInt(this.selectedCellIndex, 1, grid.cells.length);
+    if (this.inputs.cell.options.length !== grid.cells.length) {
+      this.inputs.cell.innerHTML = grid.cells.map((cell) => (
+        `<option value="${cell.index}">Cell ${String(cell.index).padStart(2, "0")}</option>`
+      )).join("");
+    }
+    this.selectedCellIndex = current;
+    this.inputs.cell.value = String(current);
+  }
+
+  getCellAdjustment(index) {
+    return this.gridAdjustments.get(index) || { offsetX: 0, offsetY: 0, zoom: 1 };
+  }
+
+  saveActiveCellAdjustment() {
+    const offsetX = this.clampNumber(this.inputs.cellX.value, -100, 100);
+    const offsetY = this.clampNumber(this.inputs.cellY.value, -100, 100);
+    const zoom = this.clampNumber(this.inputs.cellZoom.value, 0.5, 4);
+    if (offsetX === 0 && offsetY === 0 && zoom === 1) {
+      this.gridAdjustments.delete(this.selectedCellIndex);
+      return;
+    }
+    this.gridAdjustments.set(this.selectedCellIndex, { offsetX, offsetY, zoom });
+  }
+
+  loadActiveCellAdjustment() {
+    const adjustment = this.getCellAdjustment(this.selectedCellIndex);
+    this.inputs.cellX.value = String(adjustment.offsetX);
+    this.inputs.cellY.value = String(adjustment.offsetY);
+    this.inputs.cellZoom.value = String(adjustment.zoom);
+  }
+
+  resetActiveCellAdjustment() {
+    this.gridAdjustments.delete(this.selectedCellIndex);
+    this.loadActiveCellAdjustment();
+    this.render();
+  }
+
+  resetAllCellAdjustments() {
+    this.gridAdjustments.clear();
+    this.loadActiveCellAdjustment();
+    this.render();
   }
 
   getGridExportItems() {
@@ -549,12 +638,32 @@ class IconSheet {
     canvas.height = size;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, size, size);
-    ctx.drawImage(this.asset.image, cell.x, cell.y, cell.width, cell.height, 0, 0, size, size);
+    const source = this.getAdjustedSourceRect(cell);
+    ctx.drawImage(this.asset.image, source.x, source.y, source.width, source.height, 0, 0, size, size);
     return canvas;
+  }
+
+  getAdjustedSourceRect(cell) {
+    const adjustment = this.getCellAdjustment(cell.index);
+    const zoom = Math.max(0.5, adjustment.zoom || 1);
+    const width = Math.max(1, Math.min(this.asset.width, cell.width / zoom));
+    const height = Math.max(1, Math.min(this.asset.height, cell.height / zoom));
+    const centerX = cell.x + cell.width / 2 + (adjustment.offsetX / 100) * cell.width;
+    const centerY = cell.y + cell.height / 2 + (adjustment.offsetY / 100) * cell.height;
+    return {
+      x: this.clampNumber(centerX - width / 2, 0, Math.max(0, this.asset.width - width)),
+      y: this.clampNumber(centerY - height / 2, 0, Math.max(0, this.asset.height - height)),
+      width,
+      height,
+    };
   }
 
   clampInt(value, min, max) {
     return Math.max(min, Math.min(max, Math.round(Number(value || min))));
+  }
+
+  clampNumber(value, min, max) {
+    return Math.max(min, Math.min(max, Number(value || min)));
   }
 
   filePrefix() {

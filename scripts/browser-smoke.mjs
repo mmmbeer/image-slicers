@@ -94,7 +94,11 @@ async function launchBrowser() {
     throw error;
   });
   const targets = await fetchJson(`http://127.0.0.1:${browserPort}/json/list`);
-  const page = targets.find((target) => target.type === "page" && target.webSocketDebuggerUrl);
+  const page = targets.find((target) => (
+    target.type === "page"
+    && target.webSocketDebuggerUrl
+    && target.url?.startsWith(`http://127.0.0.1:${port}/`)
+  )) || targets.find((target) => target.type === "page" && target.webSocketDebuggerUrl);
   if (!page) {
     throw new Error("Browser launched, but no page debugging target was available.");
   }
@@ -254,6 +258,16 @@ async function runSmoke() {
       document.querySelector('[data-role="cols"]').dispatchEvent(new Event("input", { bubbles: true }));
       await wait(300);
       assert(document.querySelector('[data-role="grid-preview"]').width > 0, "grid preview did not render");
+      document.querySelector('[data-role="cell"]').value = "2";
+      document.querySelector('[data-role="cell"]').dispatchEvent(new Event("change", { bubbles: true }));
+      document.querySelector('[data-role="cell-x"]').value = "20";
+      document.querySelector('[data-role="cell-x"]').dispatchEvent(new Event("input", { bubbles: true }));
+      document.querySelector('[data-role="cell-y"]').value = "-15";
+      document.querySelector('[data-role="cell-y"]').dispatchEvent(new Event("input", { bubbles: true }));
+      document.querySelector('[data-role="cell-zoom"]').value = "1.5";
+      document.querySelector('[data-role="cell-zoom"]').dispatchEvent(new Event("input", { bubbles: true }));
+      await wait(300);
+      assert(document.querySelector('[data-role="cell"]').value === "2", "grid cell selector did not hold selected cell");
       document.getElementById("zipButton").click();
       await wait(800);
       assert(downloads.some((item) => item.filename.endsWith("_icon-sheet.zip") && item.size > 100), "icon sheet grid ZIP export missing");
@@ -261,6 +275,16 @@ async function runSmoke() {
       document.getElementById("resetButton").click();
       await wait(200);
       assert(document.querySelector('[data-role="rows"]').value === "3", "reset did not restore grid rows");
+
+      document.querySelector('[data-tool-id="logo-library"]').click();
+      await wait(300);
+      assert(document.querySelector('[data-role="source-info"]').textContent.includes("96 x 72"), "logo library did not receive current image");
+      document.getElementById("exportButton").click();
+      await wait(1400);
+      assert(downloads.some((item) => item.filename.endsWith("512x512.png") && item.size > 100), "logo library PNG export missing");
+      document.getElementById("zipButton").click();
+      await wait(800);
+      assert(downloads.some((item) => item.filename.endsWith("_logo-library.zip") && item.size > 100), "logo library ZIP export missing");
 
       return {
         failures,
