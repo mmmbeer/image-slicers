@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Image Tool Library</title>
+  <link rel="stylesheet" href="./src/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/konva@9.3.1/konva.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Image tools">
+      <div class="brand">
+        <div class="brand-mark">IT</div>
+        <div>
+          <h1>Image Tools</h1>
+          <p>Local raster asset utilities</p>
+        </div>
+      </div>
+      <nav id="toolNav" class="tool-nav"></nav>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div class="active-tool">
+          <div id="activeToolName" class="active-tool-name">Nine Slicer</div>
+          <div id="activeToolDescription" class="active-tool-description"></div>
+        </div>
+        <div class="toolbar" aria-label="Workspace actions">
+          <label class="icon-button import-button" title="Import image">
+            <span aria-hidden="true">+</span>
+            <input id="fileInput" type="file" accept="image/*" />
+          </label>
+          <button id="resetButton" class="icon-button" type="button" title="Reset tool" aria-label="Reset tool">R</button>
+          <button id="exportButton" class="primary-button" type="button" disabled>Export</button>
+          <button id="zipButton" class="primary-button" type="button" disabled>ZIP</button>
+        </div>
+      </header>
+
+      <section id="dropZone" class="tool-host" aria-label="Image workspace">
+        <div id="toolRoot" class="tool-root"></div>
+        <div id="emptyState" class="empty-state">
+          <div class="empty-state-icon">+</div>
+          <h2>Drop an image here</h2>
+          <p>PNG, JPG, and transparent images stay in your browser. Use the toolbar to export local files.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>

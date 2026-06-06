@@ -1,0 +1,734 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>9/13-Slice Image Splitter</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: #0b0f14; color: #e7edf6; }
+    header { padding: 16px 18px; border-bottom: 1px solid #1b2430; background: #0e141c; position: sticky; top: 0; z-index: 5; }
+    header h1 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: .2px; }
+    main { padding: 18px; max-width: 1200px; margin: 0 auto; }
+    .row { display: grid; grid-template-columns: 360px 1fr; gap: 18px; align-items: start; }
+    @media (max-width: 980px) { .row { grid-template-columns: 1fr; } }
+
+    .panel { background: #0e141c; border: 1px solid #1b2430; border-radius: 14px; padding: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    .panel h2 { margin: 0 0 10px; font-size: 14px; font-weight: 700; color: #cfe2ff; }
+    .muted { color: #9fb0c7; font-size: 12px; line-height: 1.35; }
+    label { font-size: 12px; color: #bcd0ea; display: block; margin: 10px 0 6px; }
+    input[type="number"], input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 10px;
+      border-radius: 10px;
+      border: 1px solid #233145;
+      background: #0b1118;
+      color: #e7edf6;
+      outline: none;
+    }
+    input[type="file"] { width: 100%; }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btnrow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    button {
+      border: 1px solid #2a3b54;
+      background: #101a26;
+      color: #e7edf6;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 650;
+      font-size: 13px;
+    }
+    button:hover { background: #132033; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
+    .canvasWrap { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    canvas { width: 100%; height: auto; background: #070b10; border: 1px solid #1b2430; border-radius: 12px; display: block; }
+
+    .thumbs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .thumb { border: 1px solid #1b2430; background: #0b1118; border-radius: 12px; padding: 10px; }
+    .thumbTitle { font-size: 12px; color: #bcd0ea; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 8px; }
+    .tag { font-size: 11px; color: #9fb0c7; background: #0e141c; border: 1px solid #1b2430; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+
+    .help { margin-top: 10px; padding: 10px 12px; border-radius: 12px; border: 1px dashed #2a3b54; background: rgba(19,32,51,.5); font-size: 12px; color: #a9bbd5; line-height: 1.45; }
+    .warn { margin-top: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid #5a3b2a; background: rgba(90,59,42,.25); font-size: 12px; color: #ffd5c2; line-height: 1.45; display: none; }
+    .inline { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+    .inline input[type="checkbox"] { transform: scale(1.1); }
+
+    .subtle { font-size: 12px; color: #9fb0c7; margin-top: 6px; line-height: 1.35; }
+  </style>
+</head>
+<body>
+<header><h1>9/13-Slice Image Splitter (corners + edges + center)</h1></header>
+
+<main>
+  <div class="row">
+    <section class="panel">
+      <h2>Input</h2>
+      <label>Image file</label>
+      <input id="file" type="file" accept="image/*" />
+
+      <div class="help">
+        Drag the red guide lines on the preview, or type slice sizes below.
+        <br/>Left/Right/Top/Bottom are in pixels (thickness of the fixed corner/edge regions).
+      </div>
+
+      <label>Output name prefix (optional)</label>
+      <input id="prefix" type="text" placeholder="frame_" value="frame_" />
+
+      <h2 style="margin-top:14px;">Slice settings (px)</h2>
+      <div class="grid2">
+        <div><label>Left</label><input id="left" type="number" min="0" step="1" value="16" /></div>
+        <div><label>Right</label><input id="right" type="number" min="0" step="1" value="16" /></div>
+        <div><label>Top</label><input id="top" type="number" min="0" step="1" value="16" /></div>
+        <div><label>Bottom</label><input id="bottom" type="number" min="0" step="1" value="16" /></div>
+      </div>
+
+      <div class="inline">
+        <input id="snap" type="checkbox" checked />
+        <label for="snap" style="margin:0;">Snap guides to whole pixels</label>
+      </div>
+
+      <h2 style="margin-top:14px;">Optional 13-slice (fade edges for chaining)</h2>
+      <div class="inline">
+        <input id="enableFadeEdges" type="checkbox" />
+        <label for="enableFadeEdges" style="margin:0;">Also generate 4 faded edge variants</label>
+      </div>
+      <div class="grid2">
+        <div>
+          <label>Fade width (px)</label>
+          <input id="fadeWidth" type="number" min="1" step="1" value="16" />
+          <div class="subtle">Applied on the inside of each edge: opaque at the outside, fades to transparent toward center.</div>
+        </div>
+        <div>
+          <label>Fade mode</label>
+          <select id="fadeMode" style="width:100%; box-sizing:border-box; padding:10px 10px; border-radius:10px; border:1px solid #233145; background:#0b1118; color:#e7edf6;">
+            <option value="inside">Fade inward (recommended)</option>
+            <option value="both">Fade both sides (special)</option>
+          </select>
+          <div class="subtle">“Both” fades on both ends of the edge slice.</div>
+        </div>
+      </div>
+
+      <div class="btnrow">
+        <button id="downloadAll" disabled>Download PNGs</button>
+        <button id="downloadJSON" disabled>Download JSON manifest</button>
+      </div>
+
+      <div id="warn" class="warn"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Preview (drag the guides)</h2>
+      <div class="canvasWrap"><canvas id="preview"></canvas></div>
+
+      <h2 style="margin-top:14px;">Extracted parts</h2>
+      <div class="thumbs" id="thumbs"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+  const elFile = document.getElementById('file');
+  const elPrefix = document.getElementById('prefix');
+  const elLeft = document.getElementById('left');
+  const elRight = document.getElementById('right');
+  const elTop = document.getElementById('top');
+  const elBottom = document.getElementById('bottom');
+  const elSnap = document.getElementById('snap');
+  const elPreview = document.getElementById('preview');
+  const elThumbs = document.getElementById('thumbs');
+  const elDownloadAll = document.getElementById('downloadAll');
+  const elDownloadJSON = document.getElementById('downloadJSON');
+  const elWarn = document.getElementById('warn');
+
+  const elEnableFadeEdges = document.getElementById('enableFadeEdges');
+  const elFadeWidth = document.getElementById('fadeWidth');
+  const elFadeMode = document.getElementById('fadeMode');
+
+  const ctxPrev = elPreview.getContext('2d', { willReadFrequently: false });
+
+  let img = null;
+  let imgW = 0, imgH = 0;
+
+  // Draggable guides
+  let dragMode = null; // 'v1'|'v2'|'h1'|'h2'
+  let pointerId = null;
+
+  // Base 9 parts (always)
+  const baseParts = [
+    { key: 'corner_tl', label: 'Corner TL', tag: 'top-left' },
+    { key: 'edge_top',  label: 'Top',       tag: 'stretch X' },
+    { key: 'corner_tr', label: 'Corner TR', tag: 'top-right' },
+    { key: 'edge_left', label: 'Left',      tag: 'stretch Y' },
+    { key: 'center',    label: 'Center',    tag: 'texture' },
+    { key: 'edge_right',label: 'Right',     tag: 'stretch Y' },
+    { key: 'corner_bl', label: 'Corner BL', tag: 'bottom-left' },
+    { key: 'edge_bottom',label:'Bottom',    tag: 'stretch X' },
+    { key: 'corner_br', label: 'Corner BR', tag: 'bottom-right' },
+  ];
+
+  // Extra 4 parts (optional)
+  const fadeParts = [
+    { key: 'edge_top_fade',    label: 'Top (fade)',    tag: 'overlay' },
+    { key: 'edge_left_fade',   label: 'Left (fade)',   tag: 'overlay' },
+    { key: 'edge_right_fade',  label: 'Right (fade)',  tag: 'overlay' },
+    { key: 'edge_bottom_fade', label: 'Bottom (fade)', tag: 'overlay' },
+  ];
+
+  const partCanvases = new Map(); // key -> canvas
+
+  function clampSlices(L, R, T, B) {
+    L = Math.max(0, Math.min(L, imgW));
+    R = Math.max(0, Math.min(R, imgW));
+    T = Math.max(0, Math.min(T, imgH));
+    B = Math.max(0, Math.min(B, imgH));
+
+    if (L + R > imgW) {
+      const over = (L + R) - imgW;
+      if (L >= R) L -= over; else R -= over;
+      L = Math.max(0, L); R = Math.max(0, R);
+    }
+    if (T + B > imgH) {
+      const over = (T + B) - imgH;
+      if (T >= B) T -= over; else B -= over;
+      T = Math.max(0, T); B = Math.max(0, B);
+    }
+    return { L, R, T, B };
+  }
+
+  function getSlicesFromInputs() {
+    if (!img) return { L: 0, R: 0, T: 0, B: 0 };
+    const L = Number(elLeft.value || 0);
+    const R = Number(elRight.value || 0);
+    const T = Number(elTop.value || 0);
+    const B = Number(elBottom.value || 0);
+    return clampSlices(L, R, T, B);
+  }
+
+  function setSliceInputs({ L, R, T, B }) {
+    elLeft.value = String(L);
+    elRight.value = String(R);
+    elTop.value = String(T);
+    elBottom.value = String(B);
+  }
+
+  function showWarn(msg) {
+    if (!msg) {
+      elWarn.style.display = 'none';
+      elWarn.textContent = '';
+      return;
+    }
+    elWarn.style.display = 'block';
+    elWarn.textContent = msg;
+  }
+
+  function devicePixelRatioSafe() {
+    return Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  }
+
+  function fitCanvasToImage(canvas, imgWidth, imgHeight, maxW = 900, maxH = 520) {
+    const scale = Math.min(maxW / imgWidth, maxH / imgHeight, 1);
+    const cssW = Math.max(1, Math.floor(imgWidth * scale));
+    const cssH = Math.max(1, Math.floor(imgHeight * scale));
+
+    const dpr = devicePixelRatioSafe();
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    canvas.width = Math.max(1, Math.floor(cssW * dpr));
+    canvas.height = Math.max(1, Math.floor(cssH * dpr));
+
+    return { cssW, cssH, dpr, scale };
+  }
+
+  function ensureThumbGrid() {
+    // Rebuild to match current mode (9 vs 13)
+    elThumbs.innerHTML = '';
+    partCanvases.clear();
+
+    const list = elEnableFadeEdges.checked ? [...baseParts, ...fadeParts] : [...baseParts];
+
+    for (const p of list) {
+      const wrap = document.createElement('div');
+      wrap.className = 'thumb';
+
+      const title = document.createElement('div');
+      title.className = 'thumbTitle';
+
+      const left = document.createElement('div');
+      left.textContent = p.label;
+
+      const tag = document.createElement('div');
+      tag.className = 'tag';
+      tag.textContent = p.tag;
+
+      title.appendChild(left);
+      title.appendChild(tag);
+
+      const c = document.createElement('canvas');
+      c.width = 1; c.height = 1;
+
+      wrap.appendChild(title);
+      wrap.appendChild(c);
+      elThumbs.appendChild(wrap);
+
+      partCanvases.set(p.key, c);
+    }
+  }
+
+  function getRects() {
+    const { L, R, T, B } = getSlicesFromInputs();
+    const x0 = 0, x1 = L, x2 = imgW - R, x3 = imgW;
+    const y0 = 0, y1 = T, y2 = imgH - B, y3 = imgH;
+
+    const wL = x1 - x0;
+    const wC = x2 - x1;
+    const wR = x3 - x2;
+    const hT = y1 - y0;
+    const hC = y2 - y1;
+    const hB = y3 - y2;
+
+    const issues = [];
+    if (wL < 0 || wC < 0 || wR < 0) issues.push('Horizontal slices overlap.');
+    if (hT < 0 || hC < 0 || hB < 0) issues.push('Vertical slices overlap.');
+    if (wC === 0) issues.push('Center width is 0px (left + right == image width).');
+    if (hC === 0) issues.push('Center height is 0px (top + bottom == image height).');
+
+    return { x0,x1,x2,x3, y0,y1,y2,y3, wL,wC,wR, hT,hC,hB, issues };
+  }
+
+  function drawSliceToCanvas(dstCanvas, sx, sy, sw, sh) {
+    const ctx = dstCanvas.getContext('2d');
+    if (sw < 1 || sh < 1) {
+      dstCanvas.width = 1; dstCanvas.height = 1;
+      ctx.clearRect(0,0,1,1);
+      return;
+    }
+    dstCanvas.width = sw;
+    dstCanvas.height = sh;
+    ctx.clearRect(0,0,sw,sh);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+  }
+
+  // Creates a faded variant of an edge slice by applying an alpha gradient mask.
+  // direction: 'down'|'up'|'right'|'left' indicates where alpha fades to 0.
+  function makeFadedEdge(srcCanvas, direction, fadePx, mode = 'inside') {
+    const w = srcCanvas.width;
+    const h = srcCanvas.height;
+
+    const out = document.createElement('canvas');
+    out.width = w;
+    out.height = h;
+    const ctx = out.getContext('2d');
+
+    // Draw original edge
+    ctx.drawImage(srcCanvas, 0, 0);
+
+    // Apply alpha mask
+    ctx.globalCompositeOperation = 'destination-in';
+
+    // clamp fade size
+    const maxFade = (direction === 'left' || direction === 'right') ? w : h;
+    const f = Math.max(1, Math.min(fadePx, maxFade));
+
+    const g = (direction === 'down' || direction === 'up')
+      ? ctx.createLinearGradient(0, 0, 0, h)
+      : ctx.createLinearGradient(0, 0, w, 0);
+
+    // Build gradient stops
+    // We want "outside" opaque and "inside" transparent.
+    // For each edge:
+    //   top: outside is top edge => opaque at y=0, fade to 0 toward y=f
+    //   bottom: outside is bottom => opaque at y=h, fade to 0 toward y=h-f
+    //   left: outside is left => opaque at x=0, fade to 0 toward x=f
+    //   right: outside is right => opaque at x=w, fade to 0 toward x=w-f
+    //
+    // If mode === 'both', also fade on the opposite side.
+    function setStopsTop() {
+      const t = f / h;
+      g.addColorStop(0, 'rgba(255,255,255,1)');
+      g.addColorStop(Math.min(1, t), 'rgba(255,255,255,0)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      if (mode === 'both') {
+        g.addColorStop(Math.max(0, 1 - t), 'rgba(255,255,255,0)');
+        g.addColorStop(1, 'rgba(255,255,255,1)');
+      }
+    }
+    function setStopsBottom() {
+      const t = f / h;
+      g.addColorStop(0, 'rgba(255,255,255,0)');
+      g.addColorStop(Math.max(0, 1 - t), 'rgba(255,255,255,0)');
+      g.addColorStop(1, 'rgba(255,255,255,1)');
+      if (mode === 'both') {
+        g.addColorStop(0, 'rgba(255,255,255,1)');
+        g.addColorStop(Math.min(1, t), 'rgba(255,255,255,0)');
+      }
+    }
+    function setStopsLeft() {
+      const t = f / w;
+      g.addColorStop(0, 'rgba(255,255,255,1)');
+      g.addColorStop(Math.min(1, t), 'rgba(255,255,255,0)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      if (mode === 'both') {
+        g.addColorStop(Math.max(0, 1 - t), 'rgba(255,255,255,0)');
+        g.addColorStop(1, 'rgba(255,255,255,1)');
+      }
+    }
+    function setStopsRight() {
+      const t = f / w;
+      g.addColorStop(0, 'rgba(255,255,255,0)');
+      g.addColorStop(Math.max(0, 1 - t), 'rgba(255,255,255,0)');
+      g.addColorStop(1, 'rgba(255,255,255,1)');
+      if (mode === 'both') {
+        g.addColorStop(0, 'rgba(255,255,255,1)');
+        g.addColorStop(Math.min(1, t), 'rgba(255,255,255,0)');
+      }
+    }
+
+    if (direction === 'down') setStopsTop();
+    if (direction === 'up') setStopsBottom();
+    if (direction === 'right') setStopsLeft();
+    if (direction === 'left') setStopsRight();
+
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.globalCompositeOperation = 'source-over';
+    return out;
+  }
+
+  function updateParts() {
+    if (!img) return;
+
+    const r = getRects();
+    showWarn(r.issues.length ? r.issues.join(' ') : '');
+
+    const rectByKey = {
+      corner_tl:   { sx: r.x0, sy: r.y0, sw: r.wL, sh: r.hT },
+      edge_top:    { sx: r.x1, sy: r.y0, sw: r.wC, sh: r.hT },
+      corner_tr:   { sx: r.x2, sy: r.y0, sw: r.wR, sh: r.hT },
+
+      edge_left:   { sx: r.x0, sy: r.y1, sw: r.wL, sh: r.hC },
+      center:      { sx: r.x1, sy: r.y1, sw: r.wC, sh: r.hC },
+      edge_right:  { sx: r.x2, sy: r.y1, sw: r.wR, sh: r.hC },
+
+      corner_bl:   { sx: r.x0, sy: r.y2, sw: r.wL, sh: r.hB },
+      edge_bottom: { sx: r.x1, sy: r.y2, sw: r.wC, sh: r.hB },
+      corner_br:   { sx: r.x2, sy: r.y2, sw: r.wR, sh: r.hB },
+    };
+
+    // Draw base 9
+    for (const p of baseParts) {
+      const c = partCanvases.get(p.key);
+      const rr = rectByKey[p.key];
+      if (!c) continue;
+      drawSliceToCanvas(c, rr.sx, rr.sy, rr.sw, rr.sh);
+    }
+
+    // Draw fade variants if enabled
+    if (elEnableFadeEdges.checked) {
+      const fadeWidth = Math.max(1, Number(elFadeWidth.value || 1));
+      const fadeMode = elFadeMode.value === 'both' ? 'both' : 'inside';
+
+      // We generate from the already-cropped edge canvases
+      const topC = partCanvases.get('edge_top');
+      const leftC = partCanvases.get('edge_left');
+      const rightC = partCanvases.get('edge_right');
+      const bottomC = partCanvases.get('edge_bottom');
+
+      const topFade = partCanvases.get('edge_top_fade');
+      const leftFade = partCanvases.get('edge_left_fade');
+      const rightFade = partCanvases.get('edge_right_fade');
+      const bottomFade = partCanvases.get('edge_bottom_fade');
+
+      // Direction indicates where alpha goes to 0 (toward center)
+      // top fades "down" (toward center)
+      // bottom fades "up"
+      // left fades "right"
+      // right fades "left"
+      if (topC && topFade) copyCanvas(makeFadedEdge(topC, 'down', fadeWidth, fadeMode), topFade);
+      if (bottomC && bottomFade) copyCanvas(makeFadedEdge(bottomC, 'up', fadeWidth, fadeMode), bottomFade);
+      if (leftC && leftFade) copyCanvas(makeFadedEdge(leftC, 'right', fadeWidth, fadeMode), leftFade);
+      if (rightC && rightFade) copyCanvas(makeFadedEdge(rightC, 'left', fadeWidth, fadeMode), rightFade);
+    }
+
+    const ok = !r.issues.length;
+    elDownloadAll.disabled = !ok;
+    elDownloadJSON.disabled = !ok;
+  }
+
+  function copyCanvas(src, dst) {
+    const ctx = dst.getContext('2d');
+    dst.width = src.width;
+    dst.height = src.height;
+    ctx.clearRect(0, 0, dst.width, dst.height);
+    ctx.drawImage(src, 0, 0);
+  }
+
+  function drawPreview() {
+    if (!img) return;
+
+    const { L, R, T, B } = getSlicesFromInputs();
+    const { cssW, cssH, dpr, scale } = fitCanvasToImage(elPreview, imgW, imgH);
+
+    ctxPrev.setTransform(1,0,0,1,0,0);
+    ctxPrev.clearRect(0,0,elPreview.width, elPreview.height);
+    ctxPrev.scale(dpr, dpr);
+
+    ctxPrev.imageSmoothingEnabled = true;
+    ctxPrev.drawImage(img, 0, 0, imgW, imgH, 0, 0, cssW, cssH);
+
+    const x1 = L * scale;
+    const x2 = (imgW - R) * scale;
+    const y1 = T * scale;
+    const y2 = (imgH - B) * scale;
+
+    ctxPrev.save();
+    ctxPrev.globalAlpha = 0.22;
+    ctxPrev.fillStyle = '#000';
+    ctxPrev.fillRect(0, 0, x1, cssH);
+    ctxPrev.fillRect(x2, 0, cssW - x2, cssH);
+    ctxPrev.fillRect(x1, 0, x2 - x1, y1);
+    ctxPrev.fillRect(x1, y2, x2 - x1, cssH - y2);
+    ctxPrev.restore();
+
+    ctxPrev.save();
+    ctxPrev.lineWidth = 2;
+    ctxPrev.strokeStyle = '#ff3b3b';
+    ctxPrev.beginPath();
+    ctxPrev.moveTo(x1, 0); ctxPrev.lineTo(x1, cssH);
+    ctxPrev.moveTo(x2, 0); ctxPrev.lineTo(x2, cssH);
+    ctxPrev.moveTo(0, y1); ctxPrev.lineTo(cssW, y1);
+    ctxPrev.moveTo(0, y2); ctxPrev.lineTo(cssW, y2);
+    ctxPrev.stroke();
+
+    ctxPrev.fillStyle = 'rgba(255,59,59,.85)';
+    const handleSize = 8;
+    ctxPrev.fillRect(x1 - handleSize/2, cssH/2 - handleSize/2, handleSize, handleSize);
+    ctxPrev.fillRect(x2 - handleSize/2, cssH/2 - handleSize/2, handleSize, handleSize);
+    ctxPrev.fillRect(cssW/2 - handleSize/2, y1 - handleSize/2, handleSize, handleSize);
+    ctxPrev.fillRect(cssW/2 - handleSize/2, y2 - handleSize/2, handleSize, handleSize);
+    ctxPrev.restore();
+
+    updateParts();
+  }
+
+  // Downloads
+  function downloadBlob(blob, filename) {
+    const a = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2500);
+  }
+
+  function canvasToBlob(canvas, type = 'image/png') {
+    return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), type));
+  }
+
+  function fileSafePrefix() {
+    const p = (elPrefix.value || '').trim();
+    if (!p) return '';
+    return p.replace(/[^\w\-]+/g, '_');
+  }
+
+  function getExportPartsList() {
+    return elEnableFadeEdges.checked ? [...baseParts, ...fadeParts] : [...baseParts];
+  }
+
+  async function downloadAllPNGs() {
+    const prefix = fileSafePrefix();
+    const list = getExportPartsList();
+
+    for (const p of list) {
+      const c = partCanvases.get(p.key);
+      const blob = await canvasToBlob(c, 'image/png');
+      downloadBlob(blob, `${prefix}${p.key}.png`);
+      await new Promise(r => setTimeout(r, 120));
+    }
+  }
+
+  function downloadManifestJSON() {
+    const { L, R, T, B } = getSlicesFromInputs();
+    const prefix = fileSafePrefix();
+    const list = getExportPartsList();
+
+    const data = {
+      source: { width: imgW, height: imgH, fileName: elFile.files?.[0]?.name || null },
+      slices: { left: L, right: R, top: T, bottom: B },
+      mode: elEnableFadeEdges.checked ? '13-slice' : '9-slice',
+      fadeEdges: elEnableFadeEdges.checked ? {
+        enabled: true,
+        width: Math.max(1, Number(elFadeWidth.value || 1)),
+        mode: elFadeMode.value
+      } : { enabled: false },
+      parts: list.map(p => ({ key: p.key, file: `${prefix}${p.key}.png` }))
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    downloadBlob(blob, `${prefix}slice_manifest.json`);
+  }
+
+  // Inputs
+  function onSlicesChanged() {
+    if (!img) return;
+
+    let { L, R, T, B } = getSlicesFromInputs();
+    if (elSnap.checked) {
+      L = Math.round(L); R = Math.round(R); T = Math.round(T); B = Math.round(B);
+    }
+    ({ L, R, T, B } = clampSlices(L, R, T, B));
+    setSliceInputs({ L, R, T, B });
+    drawPreview();
+  }
+
+  [elLeft, elRight, elTop, elBottom].forEach(inp => {
+    inp.addEventListener('input', onSlicesChanged);
+    inp.addEventListener('change', onSlicesChanged);
+  });
+
+  elSnap.addEventListener('change', onSlicesChanged);
+
+  elEnableFadeEdges.addEventListener('change', () => {
+    ensureThumbGrid();
+    drawPreview();
+  });
+
+  elFadeWidth.addEventListener('input', drawPreview);
+  elFadeMode.addEventListener('change', drawPreview);
+
+  elDownloadAll.addEventListener('click', downloadAllPNGs);
+  elDownloadJSON.addEventListener('click', downloadManifestJSON);
+
+  // Load image
+  elFile.addEventListener('change', () => {
+    const f = elFile.files && elFile.files[0];
+    if (!f) return;
+
+    const url = URL.createObjectURL(f);
+    const im = new Image();
+    im.onload = () => {
+      img = im;
+      imgW = im.naturalWidth;
+      imgH = im.naturalHeight;
+
+      let { L, R, T, B } = getSlicesFromInputs();
+      if ((L + R) >= imgW || (T + B) >= imgH) {
+        L = Math.max(1, Math.floor(imgW * 0.2));
+        R = L;
+        T = Math.max(1, Math.floor(imgH * 0.2));
+        B = T;
+        ({ L, R, T, B } = clampSlices(L, R, T, B));
+        setSliceInputs({ L, R, T, B });
+      }
+
+      ensureThumbGrid();
+      drawPreview();
+
+      URL.revokeObjectURL(url);
+    };
+    im.onerror = () => {
+      img = null; imgW = imgH = 0;
+      showWarn('Failed to load image.');
+      URL.revokeObjectURL(url);
+    };
+    im.src = url;
+  });
+
+  // Dragging guides
+  function getPointerPosOnPreview(ev) {
+    const rect = elPreview.getBoundingClientRect();
+    return { x: ev.clientX - rect.left, y: ev.clientY - rect.top, rect };
+  }
+
+  function pickGuide(x, y) {
+    if (!img) return null;
+
+    const { L, R, T, B } = getSlicesFromInputs();
+    const rect = elPreview.getBoundingClientRect();
+    const cssW = rect.width, cssH = rect.height;
+    const scale = Math.min(cssW / imgW, cssH / imgH, 1);
+
+    const gx1 = L * scale;
+    const gx2 = (imgW - R) * scale;
+    const gy1 = T * scale;
+    const gy2 = (imgH - B) * scale;
+
+    const hit = 8;
+    const candidates = [];
+    if (Math.abs(x - gx1) <= hit) candidates.push({ mode: 'v1', d: Math.abs(x - gx1) });
+    if (Math.abs(x - gx2) <= hit) candidates.push({ mode: 'v2', d: Math.abs(x - gx2) });
+    if (Math.abs(y - gy1) <= hit) candidates.push({ mode: 'h1', d: Math.abs(y - gy1) });
+    if (Math.abs(y - gy2) <= hit) candidates.push({ mode: 'h2', d: Math.abs(y - gy2) });
+
+    candidates.sort((a,b) => a.d - b.d);
+    return candidates[0]?.mode || null;
+  }
+
+  function setCursorForHover(mode) {
+    elPreview.style.cursor = !mode ? 'default' : (mode === 'v1' || mode === 'v2') ? 'ew-resize' : 'ns-resize';
+  }
+
+  elPreview.addEventListener('pointermove', (ev) => {
+    if (!img) return;
+
+    if (dragMode && ev.pointerId === pointerId) {
+      const { x, y, rect } = getPointerPosOnPreview(ev);
+      const cssW = rect.width, cssH = rect.height;
+      const scale = Math.min(cssW / imgW, cssH / imgH, 1);
+
+      let { L, R, T, B } = getSlicesFromInputs();
+
+      if (dragMode === 'v1') L = x / scale;
+      else if (dragMode === 'v2') R = (imgW - (x / scale));
+      else if (dragMode === 'h1') T = y / scale;
+      else if (dragMode === 'h2') B = (imgH - (y / scale));
+
+      if (elSnap.checked) { L = Math.round(L); R = Math.round(R); T = Math.round(T); B = Math.round(B); }
+      ({ L, R, T, B } = clampSlices(L, R, T, B));
+      setSliceInputs({ L, R, T, B });
+      drawPreview();
+      return;
+    }
+
+    const { x, y } = getPointerPosOnPreview(ev);
+    setCursorForHover(pickGuide(x, y));
+  });
+
+  elPreview.addEventListener('pointerdown', (ev) => {
+    if (!img) return;
+    const { x, y } = getPointerPosOnPreview(ev);
+    const mode = pickGuide(x, y);
+    if (!mode) return;
+
+    dragMode = mode;
+    pointerId = ev.pointerId;
+    elPreview.setPointerCapture(pointerId);
+    setCursorForHover(mode);
+    ev.preventDefault();
+  });
+
+  function endDrag(ev) {
+    if (!dragMode) return;
+    if (pointerId != null && ev.pointerId !== pointerId) return;
+    dragMode = null;
+    pointerId = null;
+    elPreview.style.cursor = 'default';
+  }
+
+  elPreview.addEventListener('pointerup', endDrag);
+  elPreview.addEventListener('pointercancel', endDrag);
+  elPreview.addEventListener('pointerleave', () => { if (!dragMode) elPreview.style.cursor = 'default'; });
+
+  // Initial thumbs (empty)
+  ensureThumbGrid();
+</script>
+</body>
+</html>
