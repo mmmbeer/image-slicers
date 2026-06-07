@@ -64,6 +64,7 @@ class PatternBuilder {
     this.drag = null;
     this.renderQueued = false;
     this.lastScatterResult = "";
+    this.patternPreviewZoom = 1;
     this.boundKeyDown = (event) => this.onKeyDown(event);
   }
 
@@ -119,14 +120,9 @@ class PatternBuilder {
         type: "image/png",
         getBlob: () => this.context.canvasUtils.canvasToBlob(this.renderExportCanvas(), "image/png"),
       },
-      {
-        filename: `${base}_recipe.json`,
-        type: "application/json",
-        getBlob: async () => new Blob([JSON.stringify(this.scene, null, 2)], { type: "application/json" }),
-      },
     ];
     if (supportsWebP()) {
-      items.splice(1, 0, {
+      items.push({
         filename: `${base}.webp`,
         type: "image/webp",
         getBlob: () => this.context.canvasUtils.canvasToBlob(this.renderExportCanvas(), "image/webp", 0.92),
@@ -147,6 +143,10 @@ class PatternBuilder {
     this.recipeInput = role(root, "recipe-input");
     this.backgroundInput = role(root, "background-input");
     this.settingsModal = role(root, "settings-modal");
+    this.patternPreviewModal = role(root, "pattern-preview-modal");
+    this.scatterModal = role(root, "scatter-modal");
+    this.exportMenu = role(root, "export-menu");
+    this.selectedToolbar = role(root, "selected-toolbar");
     this.inputs = {
       tileSize: role(root, "tile-size"),
       customSize: role(root, "custom-size"),
@@ -207,10 +207,21 @@ class PatternBuilder {
     if (!action) return;
 
     if (action === "import") this.fileInput.click();
-    if (action === "export-png") this.downloadSingle("png");
-    if (action === "export-webp") this.downloadSingle("webp");
-    if (action === "save-recipe") this.downloadRecipe();
+    if (action === "open-export-menu") this.openExportMenu();
+    if (action === "close-export-menu") this.closeExportMenu();
+    if (action === "export-png") {
+      this.downloadSingle("png");
+      this.closeExportMenu();
+    }
+    if (action === "export-webp") {
+      this.downloadSingle("webp");
+      this.closeExportMenu();
+    }
     if (action === "load-recipe") this.recipeInput.click();
+    if (action === "open-scatter") this.openScatterModal();
+    if (action === "close-scatter") this.closeScatterModal();
+    if (action === "pattern-preview") this.openPatternPreview();
+    if (action === "close-pattern-preview") this.closePatternPreview();
     if (action === "settings") this.openSettings();
     if (action === "close-settings") this.closeSettings();
     if (action === "fit") this.fitView();
@@ -221,8 +232,15 @@ class PatternBuilder {
     if (action === "back") this.moveSelectedLayer(-1);
     if (action === "flip-x") this.toggleSelected("flipX");
     if (action === "flip-y") this.toggleSelected("flipY");
-    if (action === "generate-scatter") this.generateScatter(false);
-    if (action === "new-seed") this.generateScatter(true);
+    if (action === "toggle-selected-lock") this.toggleSelected("locked");
+    if (action === "generate-scatter") {
+      this.generateScatter(false);
+      this.closeScatterModal();
+    }
+    if (action === "new-seed") {
+      this.generateScatter(true);
+      this.closeScatterModal();
+    }
     if (action === "convert-scatter") this.convertScatterToManual();
     if (action === "background-image") this.backgroundInput.click();
     if (action === "add-layer") this.addLayer();
@@ -243,6 +261,11 @@ class PatternBuilder {
     if (roleName === "background-type") this.scene.tile.background.type = target.value;
     if (roleName === "background-color") this.scene.tile.background.color = target.value;
     if (roleName === "zoom") this.zoom = Number(target.value || 1);
+    if (roleName === "pattern-preview-zoom") {
+      this.patternPreviewZoom = clamp(Number(target.value || 1), 0.25, 4);
+      this.renderPatternPreview();
+      return;
+    }
     if (target.dataset.setting) this.readSetting(target);
     if (target.dataset.scatter) this.readScatter(target);
     if (target.dataset.transform) this.readTransform(target);
@@ -323,12 +346,20 @@ class PatternBuilder {
   }
 
   updateTileSize() {
+    const previousWidth = this.scene.tile.width;
+    const previousHeight = this.scene.tile.height;
     const next = this.inputs.tileSize.value === "custom"
       ? Number(this.inputs.customSize.value || this.scene.tile.width)
       : Number(this.inputs.tileSize.value);
     const size = clamp(Math.round(next), 64, 4096);
     this.scene.tile.width = size;
     this.scene.tile.height = size;
+    if (previousWidth && previousHeight && (previousWidth !== size || previousHeight !== size)) {
+      for (const object of this.scene.objects) {
+        object.x = wrap(object.x * (size / previousWidth), size);
+        object.y = wrap(object.y * (size / previousHeight), size);
+      }
+    }
   }
 
   selectObject(id) {
@@ -345,6 +376,33 @@ class PatternBuilder {
   }
 
   onCanvasDown(event) {
+    const handle = this.pickHandle(event);
+    if (handle) {
+      const object = this.getObject(this.selectedId);
+      const source = this.getSource(object?.sourceId);
+      if (!object || !source || object.locked) return;
+      const point = this.canvasToTile(event, { allowRepeat: true });
+      const center = this.objectScreenPoint(object);
+      this.drag = {
+        type: handle.type,
+        handle: handle.name,
+        id: object.id,
+        start: point,
+        pointerId: event.pointerId,
+        ox: object.x,
+        oy: object.y,
+        scaleX: object.scaleX,
+        scaleY: object.scaleY,
+        rotation: object.rotation,
+        startDistance: Math.max(1, Math.hypot(event.clientX - center.x, event.clientY - center.y)),
+        startAngle: Math.atan2(event.clientY - center.y, event.clientX - center.x),
+        sourceWidth: source.width,
+        sourceHeight: source.height,
+      };
+      this.canvas.setPointerCapture(event.pointerId);
+      event.preventDefault();
+      return;
+    }
     const point = this.canvasToTile(event);
     if (!point) return;
     const picked = this.pickObject(point.x, point.y);
@@ -370,8 +428,24 @@ class PatternBuilder {
       return;
     }
     const object = this.getObject(this.drag.id);
-    const point = this.canvasToTile(event);
+    const point = this.canvasToTile(event, { allowRepeat: true });
     if (!object || !point || object.locked) return;
+    if (this.drag.type === "rotate") {
+      const center = this.objectScreenPoint(object);
+      const angle = Math.atan2(event.clientY - center.y, event.clientX - center.x);
+      object.rotation = round(this.drag.rotation + radToDeg(angle - this.drag.startAngle), 2);
+      this.updateAll();
+      return;
+    }
+    if (this.drag.type === "resize") {
+      const center = this.objectScreenPoint(object);
+      const distance = Math.max(6, Math.hypot(event.clientX - center.x, event.clientY - center.y));
+      const amount = clamp(distance / this.drag.startDistance, 0.05, 8);
+      object.scaleX = round(this.drag.scaleX * amount, 3);
+      object.scaleY = round(this.drag.scaleY * amount, 3);
+      this.updateAll();
+      return;
+    }
     object.x = wrap(this.drag.ox + point.x - this.drag.start.x, this.scene.tile.width);
     object.y = wrap(this.drag.oy + point.y - this.drag.start.y, this.scene.tile.height);
     this.applySnapping(object);
@@ -429,7 +503,7 @@ class PatternBuilder {
   readScatter(input) {
     const key = input.dataset.scatter;
     if (input.type === "checkbox") this.scatter[key] = input.checked;
-    else if (key === "sourceIds") this.scatter[key] = [...this.options.querySelectorAll("[data-scatter-source]:checked")].map((item) => item.value);
+    else if (key === "sourceIds") this.scatter[key] = [...this.root.querySelectorAll("[data-scatter-source]:checked")].map((item) => item.value);
     else this.scatter[key] = Number(input.value);
   }
 
@@ -457,7 +531,7 @@ class PatternBuilder {
   }
 
   generateScatter(newSeed) {
-    const sourceIds = [...this.options.querySelectorAll("[data-scatter-source]:checked")].map((input) => input.value);
+    const sourceIds = [...this.root.querySelectorAll("[data-scatter-source]:checked")].map((input) => input.value);
     const ids = sourceIds.length ? sourceIds : this.scene.sources.map((source) => source.id);
     if (!ids.length) {
       this.notify("Import at least one transparent source image before scattering.");
@@ -520,6 +594,7 @@ class PatternBuilder {
     this.scene.objects.push(...placed);
     this.lastScatterResult = `${placed.length}/${this.scatter.count} placed`;
     this.selectedId = placed[0]?.id || this.selectedId;
+    this.mode = "manual";
     this.updateAll();
     this.notify(`Scatter generated: ${this.lastScatterResult}`);
   }
@@ -620,6 +695,8 @@ class PatternBuilder {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.ctx.clearRect(0, 0, cssWidth, cssHeight);
     this.drawWorkspace(cssWidth, cssHeight);
+    this.updateSelectedToolbar();
+    this.renderPatternPreview();
   }
 
   drawWorkspace(width, height) {
@@ -648,6 +725,7 @@ class PatternBuilder {
       }
     }
     this.view = { originX, originY, scale, repeat };
+    this.drawSelectedHandles();
   }
 
   drawTile(ctx, view) {
@@ -744,6 +822,76 @@ class PatternBuilder {
     }
   }
 
+  drawSelectedHandles() {
+    const geometry = this.getSelectedGeometry();
+    if (!geometry || this.previewMode !== "tile") return;
+    const { corners, rotate } = geometry;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.strokeStyle = "#ff5a3d";
+    ctx.fillStyle = "#101010";
+    ctx.lineWidth = 1.5;
+    for (const corner of corners) {
+      ctx.beginPath();
+      ctx.rect(corner.x - 5, corner.y - 5, 10, 10);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo((corners[0].x + corners[1].x) / 2, (corners[0].y + corners[1].y) / 2);
+    ctx.lineTo(rotate.x, rotate.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(rotate.x, rotate.y, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  getSelectedGeometry() {
+    const object = this.getObject(this.selectedId);
+    const source = this.getSource(object?.sourceId);
+    if (!object || !source || !this.view || this.view.repeat !== 1) return null;
+    const cx = this.view.originX + object.x * this.view.scale;
+    const cy = this.view.originY + object.y * this.view.scale;
+    const width = source.width * Math.abs(object.scaleX) * this.view.scale;
+    const height = source.height * Math.abs(object.scaleY) * this.view.scale;
+    const angle = degToRad(object.rotation);
+    const local = [
+      { name: "nw", x: -width / 2, y: -height / 2 },
+      { name: "ne", x: width / 2, y: -height / 2 },
+      { name: "se", x: width / 2, y: height / 2 },
+      { name: "sw", x: -width / 2, y: height / 2 },
+    ];
+    const corners = local.map((point) => ({
+      name: point.name,
+      ...rotatePoint(point.x, point.y, angle, cx, cy),
+    }));
+    const topCenter = rotatePoint(0, -height / 2 - 28, angle, cx, cy);
+    return { object, source, cx, cy, corners, rotate: { name: "rotate", ...topCenter } };
+  }
+
+  pickHandle(event) {
+    const geometry = this.getSelectedGeometry();
+    if (!geometry) return null;
+    const rect = this.canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const rotateDistance = Math.hypot(x - geometry.rotate.x, y - geometry.rotate.y);
+    if (rotateDistance <= 11) return { type: "rotate", name: "rotate" };
+    for (const corner of geometry.corners) {
+      if (Math.hypot(x - corner.x, y - corner.y) <= 10) return { type: "resize", name: corner.name };
+    }
+    return null;
+  }
+
+  objectScreenPoint(object) {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = rect.left + this.view.originX + object.x * this.view.scale;
+    const y = rect.top + this.view.originY + object.y * this.view.scale;
+    return { x, y };
+  }
+
   pickObject(x, y) {
     for (let i = this.scene.objects.length - 1; i >= 0; i -= 1) {
       const object = this.scene.objects[i];
@@ -756,7 +904,7 @@ class PatternBuilder {
     return null;
   }
 
-  canvasToTile(event) {
+  canvasToTile(event, options = {}) {
     if (!this.view) return null;
     const rect = this.canvas.getBoundingClientRect();
     const cx = event.clientX - rect.left;
@@ -764,7 +912,7 @@ class PatternBuilder {
     const tileSize = this.scene.tile.width;
     const localX = (cx - this.view.originX) / this.view.scale;
     const localY = (cy - this.view.originY) / this.view.scale;
-    if (localX < 0 || localY < 0 || localX >= tileSize * this.view.repeat || localY >= tileSize * this.view.repeat) return null;
+    if (!options.allowRepeat && (localX < 0 || localY < 0 || localX >= tileSize * this.view.repeat || localY >= tileSize * this.view.repeat)) return null;
     return { x: wrap(localX, tileSize), y: wrap(localY, tileSize) };
   }
 
@@ -807,10 +955,6 @@ class PatternBuilder {
 
   renderOptions() {
     const selected = this.getObject(this.selectedId);
-    if (this.mode === "scatter") {
-      this.options.innerHTML = scatterOptions(this.scene.sources, this.scatter, this.lastScatterResult);
-      return;
-    }
     if (this.mode === "combined") {
       this.options.innerHTML = combinedOptions(selected, this.scene.scatterGroups);
       return;
@@ -847,6 +991,118 @@ class PatternBuilder {
     this.settingsModal.innerHTML = settingsTemplate(this.settings);
   }
 
+  openScatterModal() {
+    this.scatterModal.hidden = false;
+    this.scatterModal.innerHTML = `
+      <div class="pattern-scatter-card">
+        <div class="pane-title">
+          <h2>Scatter Pattern</h2>
+          <button type="button" data-action="close-scatter">Close</button>
+        </div>
+        <div class="pattern-scatter-body">
+          ${scatterOptions(this.scene.sources, this.scatter, this.lastScatterResult)}
+        </div>
+      </div>
+    `;
+  }
+
+  closeScatterModal() {
+    this.scatterModal.hidden = true;
+    this.scatterModal.innerHTML = "";
+  }
+
+  openExportMenu() {
+    this.exportMenu.hidden = false;
+  }
+
+  closeExportMenu() {
+    this.exportMenu.hidden = true;
+  }
+
+  openPatternPreview() {
+    this.patternPreviewModal.hidden = false;
+    this.patternPreviewModal.innerHTML = `
+      <div class="pattern-preview-card">
+        <div class="pattern-preview-head">
+          <strong>Pattern Preview</strong>
+          <div class="pattern-preview-controls">
+            <label>Zoom <input data-role="pattern-preview-zoom" type="range" min="0.25" max="4" step="0.05" value="${this.patternPreviewZoom}" /></label>
+            <button type="button" data-action="close-pattern-preview">Close</button>
+          </div>
+        </div>
+        <div class="pattern-preview-body">
+          <canvas data-role="pattern-preview-canvas"></canvas>
+        </div>
+      </div>
+    `;
+    this.renderPatternPreview();
+  }
+
+  closePatternPreview() {
+    this.patternPreviewModal.hidden = true;
+    this.patternPreviewModal.innerHTML = "";
+  }
+
+  renderPatternPreview() {
+    const canvas = this.root?.querySelector("[data-role='pattern-preview-canvas']");
+    if (!canvas || this.patternPreviewModal.hidden) return;
+    const body = canvas.parentElement;
+    const rect = body.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const width = Math.max(360, Math.floor(rect.width));
+    const height = Math.max(300, Math.floor(rect.height));
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    if (this.settings.checkerboard) drawChecker(ctx, 0, 0, width, height, 18);
+    const tile = this.scene.tile.width;
+    const scale = this.patternPreviewZoom * Math.min(width / (tile * 3), height / (tile * 3));
+    const tilesX = Math.ceil(width / (tile * scale)) + 2;
+    const tilesY = Math.ceil(height / (tile * scale)) + 2;
+    const originX = Math.floor((width - tilesX * tile * scale) / 2);
+    const originY = Math.floor((height - tilesY * tile * scale) / 2);
+    for (let y = 0; y < tilesY; y += 1) {
+      for (let x = 0; x < tilesX; x += 1) {
+        this.drawTile(ctx, {
+          x: originX + x * tile * scale,
+          y: originY + y * tile * scale,
+          width: tile * scale,
+          height: tile * scale,
+          scale,
+          helpers: false,
+        });
+      }
+    }
+  }
+
+  updateSelectedToolbar() {
+    if (!this.selectedToolbar) return;
+    const geometry = this.getSelectedGeometry();
+    const object = this.getObject(this.selectedId);
+    if (!geometry || !object || object.hidden) {
+      this.selectedToolbar.hidden = true;
+      return;
+    }
+    const topY = Math.min(...geometry.corners.map((corner) => corner.y), geometry.rotate.y) - 34;
+    const centerX = geometry.corners.reduce((sum, corner) => sum + corner.x, 0) / geometry.corners.length;
+    this.selectedToolbar.hidden = false;
+    this.selectedToolbar.style.left = `${Math.round(centerX)}px`;
+    this.selectedToolbar.style.top = `${Math.max(8, Math.round(topY))}px`;
+    this.selectedToolbar.innerHTML = `
+      <button type="button" data-action="flip-x" title="Flip horizontal">Flip H</button>
+      <button type="button" data-action="flip-y" title="Flip vertical">Flip V</button>
+      <button type="button" data-action="back" title="Move backward">Back</button>
+      <button type="button" data-action="front" title="Move forward">Front</button>
+      <button type="button" data-action="duplicate" title="Duplicate">Duplicate</button>
+      <button type="button" data-action="toggle-selected-lock" title="Lock">${object.locked ? "Unlock" : "Lock"}</button>
+      <button type="button" data-action="delete" title="Delete">Delete</button>
+    `;
+  }
+
   closeSettings() {
     this.settingsModal.hidden = true;
   }
@@ -873,11 +1129,6 @@ class PatternBuilder {
     } catch (error) {
       this.notify(error.message);
     }
-  }
-
-  async downloadRecipe() {
-    const blob = new Blob([JSON.stringify(this.scene, null, 2)], { type: "application/json" });
-    this.context.downloadManager.downloadBlob(blob, "seamless_pattern_recipe.json");
   }
 
   async loadRecipeFile(file) {
@@ -932,13 +1183,10 @@ function template(settings) {
           </select>
           <input data-role="custom-size" type="number" min="64" max="4096" step="1" title="Custom square tile size" />
           <button type="button" data-action="import">Import Source</button>
-          <button type="button" data-action="export-png">PNG</button>
-          <button type="button" data-action="export-webp">WebP</button>
-          <button type="button" data-action="save-recipe">Save JSON</button>
-          <button type="button" data-action="load-recipe">Load JSON</button>
+          <button type="button" data-action="open-scatter">Scatter</button>
+          <button type="button" data-action="pattern-preview">Pattern Preview</button>
           <select data-role="mode" title="Mode">
             <option value="manual">Manual</option>
-            <option value="scatter">Scatter</option>
             <option value="combined">Combined</option>
           </select>
           <select data-role="preview-mode" title="Preview">
@@ -948,16 +1196,35 @@ function template(settings) {
           </select>
           <button type="button" data-action="settings">Settings</button>
         </div>
-        <div class="pattern-canvas-shell canvas-stage ${settings.checkerboard ? "show-transparency" : ""}">
+        <div class="pattern-canvas-shell ${settings.checkerboard ? "show-transparency" : ""}">
           <canvas data-role="pattern-canvas" width="960" height="640"></canvas>
+          <div class="pattern-selected-toolbar" data-role="selected-toolbar" hidden></div>
         </div>
         <div class="pattern-footer" data-role="pattern-status"></div>
         <input data-role="source-input" type="file" accept="image/png,image/webp,image/*" multiple hidden />
         <input data-role="recipe-input" type="file" accept="application/json,.json" hidden />
         <input data-role="background-input" type="file" accept="image/*" hidden />
         <div class="pattern-settings-modal" data-role="settings-modal" hidden></div>
+        <div class="pattern-preview-modal" data-role="pattern-preview-modal" hidden></div>
+        <div class="pattern-scatter-modal" data-role="scatter-modal" hidden></div>
       </section>
       <aside class="settings-pane pattern-options-pane">
+        <div class="pattern-side-header">
+          <div>
+            <strong>Pattern Tools</strong>
+            <span>Manual layout and export</span>
+          </div>
+          <div class="pattern-side-actions">
+            <button class="icon-button" type="button" data-action="open-export-menu" title="Export image" aria-label="Export image"><img src="./src/assets/export.png" alt="" aria-hidden="true" /></button>
+            <button class="icon-button" type="button" data-action="load-recipe" title="Load recipe JSON" aria-label="Load recipe JSON"><img src="./src/assets/file.png" alt="" aria-hidden="true" /></button>
+          </div>
+          <div class="pattern-export-menu" data-role="export-menu" hidden>
+            <div class="popover-title">Export Image</div>
+            <button type="button" data-action="export-png">PNG</button>
+            <button type="button" data-action="export-webp">WebP</button>
+            <button type="button" data-action="close-export-menu">Cancel</button>
+          </div>
+        </div>
         <div class="control-group">
           <h3>Background</h3>
           <div class="field">
@@ -1005,25 +1272,10 @@ function template(settings) {
 }
 
 function manualOptions(object) {
-  if (!object) return `<div class="field-help">Select an object or click a source thumbnail to place it.</div>`;
+  if (!object) return `<div class="field-help">Select an object or click a source thumbnail to place it. Drag the selected object to move it; use the corner handles to resize and the round handle to rotate.</div>`;
   return `
-    <div class="field-grid">
-      ${numberField("X", "x", object.x, 0, 4096, 1)}
-      ${numberField("Y", "y", object.y, 0, 4096, 1)}
-      ${numberField("Scale X", "scaleX", object.scaleX, -5, 5, 0.01)}
-      ${numberField("Scale Y", "scaleY", object.scaleY, -5, 5, 0.01)}
-      ${numberField("Rotate", "rotation", object.rotation, -360, 360, 1)}
-      ${numberField("Opacity", "opacity", object.opacity, 0, 1, 0.01)}
-    </div>
-    <div class="button-row">
-      <button type="button" data-action="flip-x">Flip H</button>
-      <button type="button" data-action="flip-y">Flip V</button>
-      <button type="button" data-action="duplicate">Duplicate</button>
-      <button type="button" data-action="delete">Delete</button>
-      <button type="button" data-action="front">Forward</button>
-      <button type="button" data-action="back">Back</button>
-    </div>
-    <label class="toggle"><input data-transform="locked" data-role="object-lock" type="checkbox" ${object.locked ? "checked" : ""} /><span>Lock object</span></label>
+    <div class="sample-readout">Selected ${escapeHtml(object.name)} - x ${round(object.x, 1)}, y ${round(object.y, 1)}, scale ${round(object.scaleX, 2)}, rotation ${round(object.rotation, 1)} deg</div>
+    <div class="field-help">Use the floating toolbar above the selected stamp for flip, layer order, duplicate, lock, and delete.</div>
   `;
 }
 
@@ -1208,6 +1460,19 @@ function round(value, places = 2) {
 
 function degToRad(value) {
   return (Number(value) || 0) * Math.PI / 180;
+}
+
+function radToDeg(value) {
+  return (Number(value) || 0) * 180 / Math.PI;
+}
+
+function rotatePoint(x, y, angle, cx, cy) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return {
+    x: cx + x * cos - y * sin,
+    y: cy + x * sin + y * cos,
+  };
 }
 
 function lerp(a, b, t) {

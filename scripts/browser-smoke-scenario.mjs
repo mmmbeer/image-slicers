@@ -205,11 +205,31 @@
   document.querySelector('[data-role="tile-size"]').value = "256";
   document.querySelector('[data-role="tile-size"]').dispatchEvent(new Event("change", { bubbles: true }));
   await wait(100);
-  document.querySelector('[data-transform="x"]').value = "250";
-  document.querySelector('[data-transform="x"]').dispatchEvent(new Event("input", { bubbles: true }));
-  document.querySelector('[data-transform="y"]').value = "128";
-  document.querySelector('[data-transform="y"]').dispatchEvent(new Event("input", { bubbles: true }));
+  const patternCanvas = document.querySelector('[data-role="pattern-canvas"]');
+  const patternRect = patternCanvas.getBoundingClientRect();
+  const patternPointer = (type, x, y) => patternCanvas.dispatchEvent(new PointerEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    pointerId: 11,
+    clientX: x,
+    clientY: y,
+  }));
+  const centerX = patternRect.left + patternRect.width / 2;
+  const centerY = patternRect.top + patternRect.height / 2;
+  patternPointer("pointerdown", centerX, centerY);
+  patternPointer("pointermove", centerX + 122, centerY);
+  patternPointer("pointerup", centerX + 122, centerY);
   await wait(250);
+  assert(!document.querySelector('[data-role="selected-toolbar"]').hidden, "pattern selected-object toolbar did not show");
+  assert(document.querySelector('[data-role="pattern-options"]').textContent.includes("Use the floating toolbar"), "pattern transform controls were not removed from the side panel");
+  document.querySelector('[data-action="pattern-preview"]').click();
+  await wait(250);
+  assert(!document.querySelector('[data-role="pattern-preview-modal"]').hidden, "pattern preview modal did not open");
+  assert(document.querySelector('[data-role="pattern-preview-canvas"]').width > 0, "pattern preview modal did not render a repeated canvas");
+  document.querySelector('[data-role="pattern-preview-zoom"]').value = "1.5";
+  document.querySelector('[data-role="pattern-preview-zoom"]').dispatchEvent(new Event("input", { bubbles: true }));
+  await wait(100);
+  document.querySelector('[data-action="close-pattern-preview"]').click();
   document.querySelector('[data-action="export-png"]').click();
   await wait(500);
   const patternBlob = window.__lastObjectUrlBlob;
@@ -224,26 +244,14 @@
   const rightPixel = edgeCtx.getImageData(250, 128, 1, 1).data;
   assert(leftPixel[3] > 0 && rightPixel[3] > 0, "pattern object crossing right edge did not wrap to left edge");
 
-  document.querySelector('[data-role="mode"]').value = "scatter";
-  document.querySelector('[data-role="mode"]').dispatchEvent(new Event("change", { bubbles: true }));
-  await wait(150);
-  document.querySelector('[data-scatter="count"]').value = "12";
-  document.querySelector('[data-scatter="count"]').dispatchEvent(new Event("input", { bubbles: true }));
-  document.querySelector('[data-scatter="seed"]').value = "4242";
-  document.querySelector('[data-scatter="seed"]').dispatchEvent(new Event("input", { bubbles: true }));
-  document.querySelector('[data-action="generate-scatter"]').click();
-  await wait(400);
-  document.querySelector('[data-action="save-recipe"]').click();
-  await wait(250);
-  const firstRecipe = JSON.parse(await window.__lastObjectUrlBlob.text());
   document.getElementById("resetButton").click();
   await wait(150);
   await importFilesByDrop([makeImageFile("stamp-one.png"), makeImageFile("stamp-two.png")]);
   await wait(400);
   document.querySelector('[data-role="tile-size"]').value = "256";
   document.querySelector('[data-role="tile-size"]').dispatchEvent(new Event("change", { bubbles: true }));
-  document.querySelector('[data-role="mode"]').value = "scatter";
-  document.querySelector('[data-role="mode"]').dispatchEvent(new Event("change", { bubbles: true }));
+  await wait(100);
+  document.querySelector('[data-action="open-scatter"]').click();
   await wait(150);
   document.querySelector('[data-scatter="count"]').value = "12";
   document.querySelector('[data-scatter="count"]').dispatchEvent(new Event("input", { bubbles: true }));
@@ -251,15 +259,34 @@
   document.querySelector('[data-scatter="seed"]').dispatchEvent(new Event("input", { bubbles: true }));
   document.querySelector('[data-action="generate-scatter"]').click();
   await wait(400);
-  document.querySelector('[data-action="save-recipe"]').click();
-  await wait(250);
-  const secondRecipe = JSON.parse(await window.__lastObjectUrlBlob.text());
-  const scatterSignature = (recipe) => recipe.objects
-    .filter((item) => item.scatterGroupId)
-    .map((item) => [item.x.toFixed(2), item.y.toFixed(2), item.scaleX.toFixed(3), item.rotation.toFixed(2), item.opacity.toFixed(3), item.flipX, item.flipY].join(":"))
-    .join("|");
-  assert(scatterSignature(firstRecipe) === scatterSignature(secondRecipe), "pattern scatter was not deterministic for the same seed");
-  assert(firstRecipe.sources.length >= 2 && firstRecipe.objects.length >= 14, "pattern recipe did not preserve sources and objects");
+  assert(document.querySelector('[data-role="scatter-modal"]').hidden, "scatter modal did not close after generation");
+  document.querySelector('[data-action="open-export-menu"]').click();
+  await wait(100);
+  assert(!document.querySelector('[data-role="export-menu"]').hidden, "pattern export menu did not open");
+  document.querySelector('[data-action="export-png"]').click();
+  await wait(500);
+  const firstScatterBytes = new Uint8Array(await window.__lastObjectUrlBlob.arrayBuffer()).join(",");
+  document.getElementById("resetButton").click();
+  await wait(150);
+  await importFilesByDrop([makeImageFile("stamp-one.png"), makeImageFile("stamp-two.png")]);
+  await wait(400);
+  document.querySelector('[data-role="tile-size"]').value = "256";
+  document.querySelector('[data-role="tile-size"]').dispatchEvent(new Event("change", { bubbles: true }));
+  document.querySelector('[data-action="open-scatter"]').click();
+  await wait(150);
+  document.querySelector('[data-scatter="count"]').value = "12";
+  document.querySelector('[data-scatter="count"]').dispatchEvent(new Event("input", { bubbles: true }));
+  document.querySelector('[data-scatter="seed"]').value = "4242";
+  document.querySelector('[data-scatter="seed"]').dispatchEvent(new Event("input", { bubbles: true }));
+  document.querySelector('[data-action="generate-scatter"]').click();
+  await wait(400);
+  document.querySelector('[data-action="open-export-menu"]').click();
+  await wait(100);
+  document.querySelector('[data-action="export-png"]').click();
+  await wait(500);
+  const secondScatterBytes = new Uint8Array(await window.__lastObjectUrlBlob.arrayBuffer()).join(",");
+  assert(firstScatterBytes === secondScatterBytes, "pattern scatter PNG was not deterministic for the same seed");
+  assert(document.querySelectorAll(".pattern-object-row").length >= 14, "pattern scatter did not create logical objects");
   
   return {
     failures,
