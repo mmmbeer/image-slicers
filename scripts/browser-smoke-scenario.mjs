@@ -114,6 +114,14 @@
   pointer("pointerup", cell2Center);
   await wait(100);
   assert(!document.querySelector('[data-role="grid-zoom-popover"]').hidden, "cell click did not select a grid cell");
+  const otherCellCropEdge = gridPoint(96, 18);
+  pointer("pointerdown", otherCellCropEdge);
+  pointer("pointerup", otherCellCropEdge);
+  await wait(100);
+  assert(document.querySelector('[data-role="grid-zoom-popover"]').hidden, "clicking another grid section crop edge did not clear selected grid cell");
+  pointer("pointerdown", cell2Center);
+  pointer("pointerup", cell2Center);
+  await wait(100);
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   await wait(100);
   assert(document.querySelector('[data-role="grid-zoom-popover"]').hidden, "escape did not clear selected grid cell");

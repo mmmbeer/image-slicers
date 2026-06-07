@@ -99,6 +99,11 @@ export function bindGridPointerEvents(tool) {
 
 export function onGridPointerDown(tool, event) {
   if (tool.mode !== "grid" || !tool.asset) return;
+  const hit = getGridCellAtPointer(tool, event);
+  if (tool.selectedCellIndex && (!hit || hit.cell.index !== tool.selectedCellIndex)) {
+    startClearSelectionDrag(tool, event);
+    return;
+  }
   const cropHit = getGridCropEdgeAtPointer(tool, event);
   if (cropHit) {
     tool.gridDrag = {
@@ -110,9 +115,7 @@ export function onGridPointerDown(tool, event) {
     tool.gridPreviewCanvas.setPointerCapture?.(event.pointerId);
     return;
   }
-  const hit = getGridCellAtPointer(tool, event);
   if (!hit) {
-    if (tool.selectedCellIndex) startClearSelectionDrag(tool, event);
     return;
   }
   try {
