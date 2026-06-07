@@ -58,6 +58,19 @@
   await importByDrop("smoke-frame.png");
   assert(document.getElementById("emptyState").classList.contains("hidden"), "drop import did not hide empty state");
   assert(!document.getElementById("exportButton").disabled, "export button remained disabled after import");
+  assert(Boolean(document.querySelector(".export-preview-dock")), "export preview dock was not created");
+  assert(Boolean(document.querySelector(".export-preview-source-hidden .thumb-grid, .export-preview-source-hidden .preview-grid")), "source preview grid was not hidden");
+  assert(document.querySelectorAll(".export-preview-dock .export-preview-grid-small canvas").length > 0, "collapsed export dock did not show small preview icons");
+  document.querySelector('[data-action="toggle-export-preview"]').click();
+  await wait(150);
+  assert(document.querySelector(".export-preview-dock").classList.contains("expanded"), "export preview dock did not expand");
+  assert(document.querySelectorAll(".export-preview-dock .export-preview-grid-large canvas").length > 0, "expanded export dock did not show large previews");
+  document.querySelector('[data-action="large-export-preview"]').click();
+  await wait(150);
+  assert(document.querySelectorAll(".export-preview-modal .export-preview-grid-large canvas").length > 0, "large export preview modal did not show previews");
+  document.querySelector('[data-action="close-large-export-preview"]').click();
+  document.querySelector('[data-action="toggle-export-preview"]').click();
+  await wait(150);
   
   document.getElementById("exportButton").click();
   await wait(1200);

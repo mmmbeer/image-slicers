@@ -40,7 +40,8 @@ let currentAsset = null;
 const toastService = createToast(toast);
 const helperSettings = readHelperSettings();
 let settingsPopover = null;
-let resultPopover = null;
+let exportPreviewDock = null;
+let exportPreviewModal = null;
 
 const assetIcon = (name) => `./src/assets/${name}.png`;
 const toolIcons = {
@@ -89,7 +90,8 @@ function selectTool(id) {
   activeInstance?.unmount?.();
   root.innerHTML = "";
   closeCanvasSettings();
-  closeResultPopover();
+  closeExportPreviewModal();
+  exportPreviewDock = null;
   activeTool = nextTool;
   root.dataset.tool = activeTool.id;
   activeInstance = activeTool.create(context);
@@ -138,6 +140,7 @@ function updateExportState() {
   zipButton.disabled = !hasItems;
   updateStatus();
   applyCanvasHelperSettings();
+  refreshExportPreviewDock();
 }
 
 function updateStatus(message = null) {
@@ -179,31 +182,7 @@ function decorateMountedTool() {
 }
 
 function decorateResultPanels() {
-  const resultSources = [...root.querySelectorAll(".thumb-grid, .preview-grid")].map((grid) => {
-    const panel = grid.closest(".panel");
-    const title = panel?.querySelector(".pane-title") || (grid.previousElementSibling?.classList.contains("pane-title") ? grid.previousElementSibling : null);
-    return { panel, title, grid };
-  }).filter(({ title }) => title);
-
-  for (const source of resultSources) {
-    const { panel, title, grid } = source;
-    panel?.classList.add("result-strip");
-    title.classList.add("result-strip-title");
-    grid.classList.add("result-strip-grid");
-    if (!title || title.querySelector("[data-action='expand-results']")) continue;
-    const button = document.createElement("button");
-    button.className = "icon-button result-expand-button";
-    button.type = "button";
-    button.dataset.action = "expand-results";
-    button.title = "Show larger results";
-    button.setAttribute("aria-label", "Show larger results");
-    button.innerHTML = `<img src="${assetIcon("up-chevron")}" alt="" aria-hidden="true" />`;
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      toggleResultPopover(source, button);
-    });
-    title.append(button);
-  }
+  refreshExportPreviewDock();
 }
 
 function readHelperSettings() {
@@ -285,37 +264,6 @@ function closeCanvasSettings() {
   settingsPopover = null;
 }
 
-function toggleResultPopover(source, anchor) {
-  if (resultPopover) {
-    closeResultPopover();
-    return;
-  }
-  const { panel, title, grid } = source;
-  if (!grid) return;
-
-  resultPopover = document.createElement("div");
-  resultPopover.className = "result-slideout";
-  resultPopover.setAttribute("role", "dialog");
-  resultPopover.setAttribute("aria-label", "Expanded results");
-  resultPopover.innerHTML = `
-    <div class="result-slideout-head">
-      <strong>${title?.querySelector("h2")?.textContent || panel?.querySelector(".pane-title h2")?.textContent || "Results"}</strong>
-      <button class="icon-button" type="button" title="Collapse results" aria-label="Collapse results">
-        <img src="${assetIcon("down-chevron")}" alt="" aria-hidden="true" />
-      </button>
-    </div>
-  `;
-  const clone = grid.cloneNode(true);
-  clone.classList.add("result-slideout-grid");
-  copyCanvasPixels(grid, clone);
-  resultPopover.append(clone);
-  root.append(resultPopover);
-
-  requestAnimationFrame(() => resultPopover?.classList.add("open"));
-  resultPopover.querySelector("button").addEventListener("click", closeResultPopover);
-  setTimeout(() => document.addEventListener("pointerdown", onOutsideResultPopover, { capture: true }), 0);
-}
-
 function copyCanvasPixels(sourceRoot, cloneRoot) {
   const sourceCanvases = [...sourceRoot.querySelectorAll("canvas")];
   const cloneCanvases = [...cloneRoot.querySelectorAll("canvas")];
@@ -328,18 +276,120 @@ function copyCanvasPixels(sourceRoot, cloneRoot) {
   });
 }
 
-function onOutsideResultPopover(event) {
-  if (!resultPopover?.contains(event.target) && !event.target.closest("[data-action='expand-results']")) {
-    closeResultPopover();
+function getExportPreviewSources() {
+  return [...root.querySelectorAll(".thumb-grid, .preview-grid")]
+    .filter((grid) => !grid.closest(".export-preview-dock") && !grid.closest(".export-preview-modal"))
+    .map((grid) => {
+      const panel = grid.closest(".panel");
+      const title = panel?.querySelector(".pane-title") || (grid.previousElementSibling?.classList.contains("pane-title") ? grid.previousElementSibling : null);
+      return { panel, title, grid };
+    })
+    .filter(({ title, grid }) => title && grid);
+}
+
+function refreshExportPreviewDock() {
+  if (!root || !activeTool) return;
+  const sources = getExportPreviewSources();
+  root.querySelectorAll(".export-preview-source-hidden").forEach((panel) => panel.classList.remove("export-preview-source-hidden"));
+
+  if (!sources.length) {
+    exportPreviewDock?.remove();
+    exportPreviewDock = null;
+    return;
+  }
+
+  for (const { panel } of sources) {
+    panel?.classList.add("export-preview-source-hidden");
+  }
+
+  if (!exportPreviewDock) {
+    exportPreviewDock = document.createElement("div");
+    exportPreviewDock.className = "export-preview-dock";
+    exportPreviewDock.innerHTML = `
+      <div class="export-preview-head">
+        <div>
+          <strong data-role="export-preview-title">Export Preview</strong>
+          <span data-role="export-preview-count">0 files</span>
+        </div>
+        <div class="export-preview-actions">
+          <button class="icon-button" type="button" data-action="large-export-preview" title="Open large preview" aria-label="Open large preview">
+            <img src="${assetIcon("view")}" alt="" aria-hidden="true" />
+          </button>
+          <button class="icon-button" type="button" data-action="toggle-export-preview" title="Expand export preview" aria-label="Expand export preview">
+            <img src="${assetIcon("up-chevron")}" alt="" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+      <div class="export-preview-body"></div>
+    `;
+    root.append(exportPreviewDock);
+    exportPreviewDock.querySelector("[data-action='toggle-export-preview']").addEventListener("click", () => {
+      exportPreviewDock.classList.toggle("expanded");
+      syncExportPreviewToggleIcon();
+      refreshExportPreviewDock();
+    });
+    exportPreviewDock.querySelector("[data-action='large-export-preview']").addEventListener("click", openExportPreviewModal);
+  }
+
+  const title = sources[0].title?.querySelector("h2")?.textContent || "Export Preview";
+  const count = sources[0].title?.querySelector("[data-role='export-count']")?.textContent
+    || sources[0].panel?.querySelector("[data-role='export-count']")?.textContent
+    || `${getExportItems().length} files`;
+  exportPreviewDock.querySelector("[data-role='export-preview-title']").textContent = title;
+  exportPreviewDock.querySelector("[data-role='export-preview-count']").textContent = count;
+  renderExportPreviewBody(exportPreviewDock.querySelector(".export-preview-body"), sources, exportPreviewDock.classList.contains("expanded") ? "expanded" : "collapsed");
+  syncExportPreviewToggleIcon();
+}
+
+function renderExportPreviewBody(container, sources, sizeMode) {
+  container.innerHTML = "";
+  for (const { grid } of sources) {
+    const clone = grid.cloneNode(true);
+    clone.classList.add("export-preview-grid", sizeMode === "expanded" ? "export-preview-grid-large" : "export-preview-grid-small");
+    copyCanvasPixels(grid, clone);
+    container.append(clone);
   }
 }
 
-function closeResultPopover() {
-  document.removeEventListener("pointerdown", onOutsideResultPopover, { capture: true });
-  const closing = resultPopover;
-  closing?.classList.remove("open");
-  setTimeout(() => closing?.remove(), 160);
-  resultPopover = null;
+function syncExportPreviewToggleIcon() {
+  const button = exportPreviewDock?.querySelector("[data-action='toggle-export-preview']");
+  if (!button) return;
+  const expanded = exportPreviewDock.classList.contains("expanded");
+  button.title = expanded ? "Collapse export preview" : "Expand export preview";
+  button.setAttribute("aria-label", button.title);
+  button.querySelector("img").src = assetIcon(expanded ? "down-chevron" : "up-chevron");
+}
+
+function openExportPreviewModal() {
+  const sources = getExportPreviewSources();
+  if (!sources.length) return;
+  closeExportPreviewModal();
+  exportPreviewModal = document.createElement("div");
+  exportPreviewModal.className = "export-preview-modal";
+  exportPreviewModal.setAttribute("role", "dialog");
+  exportPreviewModal.setAttribute("aria-label", "Large export preview");
+  exportPreviewModal.innerHTML = `
+    <div class="export-preview-modal-card">
+      <div class="export-preview-modal-head">
+        <strong>Export Preview</strong>
+        <button class="icon-button" type="button" data-action="close-large-export-preview" title="Close preview" aria-label="Close preview">
+          <img src="${assetIcon("close")}" alt="" aria-hidden="true" />
+        </button>
+      </div>
+      <div class="export-preview-modal-body"></div>
+    </div>
+  `;
+  root.append(exportPreviewModal);
+  renderExportPreviewBody(exportPreviewModal.querySelector(".export-preview-modal-body"), sources, "expanded");
+  exportPreviewModal.querySelector("[data-action='close-large-export-preview']").addEventListener("click", closeExportPreviewModal);
+  exportPreviewModal.addEventListener("pointerdown", (event) => {
+    if (event.target === exportPreviewModal) closeExportPreviewModal();
+  });
+}
+
+function closeExportPreviewModal() {
+  exportPreviewModal?.remove();
+  exportPreviewModal = null;
 }
 
 fileInput.addEventListener("change", () => {
@@ -379,7 +429,7 @@ zipButton.addEventListener("click", async () => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeCanvasSettings();
-    closeResultPopover();
+    closeExportPreviewModal();
   }
 });
 
