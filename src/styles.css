@@ -87,44 +87,16 @@ button:disabled {
 
 .brand {
   display: flex;
-  gap: 9px;
   align-items: center;
-  min-width: 178px;
+  min-width: 92px;
   padding-right: 10px;
   border-right: 1px solid var(--line);
 }
 
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border: 1px solid rgba(255, 45, 45, 0.56);
-  border-radius: var(--radius);
-  background: linear-gradient(135deg, rgba(255, 45, 45, 0.22), rgba(255, 90, 61, 0.10));
-  box-shadow: var(--glow);
-  overflow: hidden;
-}
-
-.brand-mark img {
-  width: 100%;
-  height: 100%;
+.brand > img {
+  width: 118px;
+  max-height: 38px;
   object-fit: contain;
-}
-
-.brand h1 {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.1;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.brand p {
-  margin: 2px 0 0;
-  color: var(--muted);
-  font-size: 11px;
-  white-space: nowrap;
 }
 
 .tool-nav {
@@ -1412,7 +1384,6 @@ button:focus-visible {
     grid-template-columns: auto minmax(180px, 1fr) auto;
   }
 
-  .brand p,
   .active-tool-description {
     display: none;
   }
@@ -1428,13 +1399,16 @@ button:focus-visible {
   }
 
   .brand {
-    min-width: 44px;
+    min-width: 56px;
     padding-right: 0;
     border-right: 0;
   }
 
-  .brand h1,
-  .brand p,
+  .brand > img {
+    width: 72px;
+    max-height: 32px;
+  }
+
   .active-tool {
     display: none;
   }

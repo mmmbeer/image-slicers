@@ -10,8 +10,8 @@ import { backgroundRemoverTool } from "./tools/backgroundRemover/tool.js";
 import { patternBuilderTool } from "./tools/patternBuilder/tool.js";
 import { createToast } from "./ui/toast.js";
 
-registerTool(nineSlicerTool);
 registerTool(iconSheetTool);
+registerTool(nineSlicerTool);
 registerTool(logoLibraryTool);
 registerTool(batchProcessorTool);
 registerTool(backgroundRemoverTool);
@@ -93,6 +93,7 @@ function selectTool(id) {
   closeExportPreviewModal();
   exportPreviewDock = null;
   activeTool = nextTool;
+  updateToolUrl(activeTool.id);
   root.dataset.tool = activeTool.id;
   activeInstance = activeTool.create(context);
   if (activeToolName) activeToolName.textContent = activeTool.name;
@@ -110,6 +111,18 @@ function selectTool(id) {
   emptyState.classList.toggle("hidden", Boolean(currentAsset) || activeInstance.handlesOwnImports);
   updateExportState();
   updateStatus("Ready");
+}
+
+function getToolIdFromUrl() {
+  const hash = window.location.hash.replace(/^#\/?/, "");
+  const queryTool = new URLSearchParams(window.location.search).get("tool");
+  return hash || queryTool || null;
+}
+
+function updateToolUrl(id) {
+  const nextHash = `#${id}`;
+  if (window.location.hash === nextHash) return;
+  history.replaceState(null, "", `${window.location.pathname}${window.location.search}${nextHash}`);
 }
 
 async function loadFile(file) {
@@ -433,6 +446,11 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+window.addEventListener("hashchange", () => {
+  const id = getToolIdFromUrl();
+  if (id && id !== activeTool?.id) selectTool(id);
+});
+
 dropZone.addEventListener("dragover", (event) => {
   event.preventDefault();
   dropZone.classList.add("dragging");
@@ -455,4 +473,4 @@ dropZone.addEventListener("drop", (event) => {
 });
 
 renderNav();
-selectTool(getTools()[0]?.id);
+selectTool(getTool(getToolIdFromUrl())?.id || getTools()[0]?.id);

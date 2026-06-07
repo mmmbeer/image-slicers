@@ -58,6 +58,9 @@
   await importByDrop("smoke-frame.png");
   assert(document.getElementById("emptyState").classList.contains("hidden"), "drop import did not hide empty state");
   assert(!document.getElementById("exportButton").disabled, "export button remained disabled after import");
+  assert(document.querySelector('[data-tool-id="icon-sheet"]').classList.contains("active"), "icon sheet was not the default tool");
+  assert(location.hash === "#icon-sheet", "active tool was not reflected in the URL hash");
+  assert(document.querySelector(".brand > img")?.getAttribute("src")?.includes("src/assets/logo.png"), "brand area is not the image logo");
   assert(Boolean(document.querySelector(".export-preview-dock")), "export preview dock was not created");
   assert(Boolean(document.querySelector(".export-preview-source-hidden .thumb-grid, .export-preview-source-hidden .preview-grid")), "source preview grid was not hidden");
   assert(document.querySelectorAll(".export-preview-dock .export-preview-grid-small canvas").length > 0, "collapsed export dock did not show small preview icons");
@@ -71,6 +74,10 @@
   document.querySelector('[data-action="close-large-export-preview"]').click();
   document.querySelector('[data-action="toggle-export-preview"]').click();
   await wait(150);
+
+  document.querySelector('[data-tool-id="nine-slicer"]').click();
+  await wait(500);
+  assert(location.hash === "#nine-slicer", "tool URL hash did not update after tool change");
   
   document.getElementById("exportButton").click();
   await wait(1200);
@@ -169,6 +176,12 @@
   document.querySelector('[data-tool-id="logo-library"]').click();
   await wait(300);
   assert(document.querySelector('[data-role="source-info"]').textContent.includes("96 x 72"), "logo library did not receive current image");
+  assert(Boolean(document.querySelector('[data-role="logo-stage"] canvas')), "logo library editable canvas did not mount");
+  document.querySelector('[data-action="rotate-90"]').click();
+  document.querySelector('[data-role="scale"]').value = "2";
+  document.querySelector('[data-role="scale"]').dispatchEvent(new Event("input", { bubbles: true }));
+  await wait(300);
+  assert(document.querySelector('[data-role="rotation"]').value === "90", "logo library rotation control did not update");
   document.getElementById("exportButton").click();
   await wait(1400);
   assert(downloads.some((item) => item.filename.endsWith("512x512.png") && item.size > 100), "logo library PNG export missing");
