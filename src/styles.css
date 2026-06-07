@@ -1,22 +1,22 @@
 :root {
   color-scheme: dark;
-  --bg: #07090d;
-  --bg-2: #0a0d13;
-  --panel: #111620;
-  --panel-2: #151b27;
-  --panel-3: #0d121a;
-  --line: #26303e;
-  --line-strong: #465366;
-  --text: #f2f6fb;
-  --muted: #98a6b8;
-  --muted-2: #657386;
-  --accent: #8b5cf6;
-  --accent-2: #2f7dff;
-  --accent-3: #ff4fd8;
+  --bg: #050505;
+  --bg-2: #090909;
+  --panel: #111111;
+  --panel-2: #181818;
+  --panel-3: #0d0d0d;
+  --line: #2b2b2b;
+  --line-strong: #4a4a4a;
+  --text: #f3f3f3;
+  --muted: #a5a5a5;
+  --muted-2: #707070;
+  --accent: #ff2d2d;
+  --accent-2: #ff5a3d;
+  --accent-3: #ff1458;
   --danger: #ff6b8a;
   --success: #55d391;
   --shadow: 0 18px 48px rgba(0, 0, 0, 0.48);
-  --glow: 0 0 24px rgba(99, 102, 241, 0.22);
+  --glow: 0 0 22px rgba(255, 45, 45, 0.20);
   --radius: 4px;
   --topbar-h: 56px;
   --statusbar-h: 28px;
@@ -68,8 +68,8 @@ button:disabled {
   display: grid;
   grid-template-rows: var(--topbar-h) minmax(0, 1fr) var(--statusbar-h);
   background:
-    radial-gradient(circle at 15% 0, rgba(139, 92, 246, 0.12), transparent 28%),
-    radial-gradient(circle at 84% 10%, rgba(47, 125, 255, 0.10), transparent 24%),
+    radial-gradient(circle at 15% 0, rgba(255, 45, 45, 0.10), transparent 28%),
+    radial-gradient(circle at 84% 10%, rgba(255, 90, 61, 0.07), transparent 24%),
     var(--bg);
 }
 
@@ -77,9 +77,9 @@ button:disabled {
   min-width: 0;
   height: var(--topbar-h);
   border-bottom: 1px solid var(--line);
-  background: rgba(11, 15, 22, 0.96);
+  background: rgba(8, 8, 8, 0.96);
   display: grid;
-  grid-template-columns: auto minmax(260px, 1fr) minmax(150px, 250px) auto;
+  grid-template-columns: auto minmax(260px, 1fr) auto;
   align-items: center;
   gap: 10px;
   padding: 0 10px;
@@ -99,9 +99,9 @@ button:disabled {
   place-items: center;
   width: 34px;
   height: 34px;
-  border: 1px solid rgba(139, 92, 246, 0.55);
+  border: 1px solid rgba(255, 45, 45, 0.56);
   border-radius: var(--radius);
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(47, 125, 255, 0.12));
+  background: linear-gradient(135deg, rgba(255, 45, 45, 0.22), rgba(255, 90, 61, 0.10));
   box-shadow: var(--glow);
   overflow: hidden;
 }
@@ -159,10 +159,10 @@ button:disabled {
 }
 
 .tool-nav button.active {
-  border-color: rgba(139, 92, 246, 0.78);
+  border-color: rgba(255, 45, 45, 0.78);
   background:
-    linear-gradient(135deg, rgba(139, 92, 246, 0.26), rgba(47, 125, 255, 0.18)),
-    #101723;
+    linear-gradient(135deg, rgba(255, 45, 45, 0.28), rgba(255, 90, 61, 0.16)),
+    #151515;
   color: var(--text);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), var(--glow);
 }
@@ -247,12 +247,21 @@ button:disabled {
   width: 17px;
   height: 17px;
   object-fit: contain;
+  filter: brightness(0.88);
+  transform: scale(1);
+  transition: filter 120ms ease, transform 120ms ease;
 }
 
 .icon-button:hover,
 .icon-button:focus-visible {
   border-color: transparent;
   background: rgba(255, 255, 255, 0.07);
+}
+
+.icon-button:hover img,
+.icon-button:focus-visible img {
+  filter: brightness(1.28);
+  transform: scale(1.12);
 }
 
 .button-row button:hover,
@@ -273,9 +282,9 @@ button:disabled {
 .primary-button {
   padding: 0 12px;
   background:
-    linear-gradient(135deg, rgba(139, 92, 246, 0.95), rgba(47, 125, 255, 0.82) 55%, rgba(255, 79, 216, 0.76)),
-    #1a2450;
-  border-color: rgba(149, 163, 255, 0.75);
+    linear-gradient(135deg, rgba(255, 45, 45, 0.96), rgba(255, 90, 61, 0.86) 62%, rgba(255, 20, 88, 0.78)),
+    #2a0d0d;
+  border-color: rgba(255, 94, 94, 0.78);
   color: #fff;
   display: inline-flex;
   align-items: center;
@@ -344,9 +353,9 @@ button:disabled {
   place-items: center;
   width: 42px;
   height: 42px;
-  border: 1px solid rgba(139, 92, 246, 0.65);
+  border: 1px solid rgba(255, 45, 45, 0.65);
   border-radius: var(--radius);
-  color: #b8c5ff;
+  color: #ffb0a3;
   font-size: 22px;
   font-weight: 800;
   box-shadow: var(--glow);
@@ -402,8 +411,8 @@ button:disabled {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  border-left: 1px solid rgba(255, 255, 255, 0.03);
-  background: #0f141d;
+  border-left: 1px solid rgba(255, 255, 255, 0.04);
+  background: #0f0f0f;
   scrollbar-width: thin;
 }
 
@@ -475,7 +484,7 @@ button:disabled {
   min-height: 34px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(15, 20, 29, 0.92);
+  background: rgba(15, 15, 15, 0.92);
   padding: 6px 8px;
 }
 
@@ -500,7 +509,7 @@ button:disabled {
   min-height: 24px;
   height: 24px;
   margin-left: auto;
-  color: #c7d2fe;
+  color: #ffb0a3;
 }
 
 .canvas-stage {
@@ -509,7 +518,7 @@ button:disabled {
   overflow: auto;
   display: grid;
   place-items: center;
-  background-color: #070a0f;
+  background-color: #070707;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   outline: 1px solid rgba(255, 255, 255, 0.015);
@@ -530,8 +539,8 @@ button:disabled {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(99, 102, 241, 0.14) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(99, 102, 241, 0.14) 1px, transparent 1px);
+    linear-gradient(rgba(255, 45, 45, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 45, 45, 0.14) 1px, transparent 1px);
   background-size: 32px 32px;
   pointer-events: none;
   z-index: 1;
@@ -552,7 +561,7 @@ button:disabled {
   padding: 3px 6px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 2px;
-  background: rgba(8, 12, 18, 0.84);
+  background: rgba(8, 8, 8, 0.86);
   color: var(--muted);
   font-size: 11px;
 }
@@ -563,7 +572,7 @@ button:disabled {
   z-index: 30;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  background: rgba(12, 16, 24, 0.97);
+  background: rgba(12, 12, 12, 0.97);
   box-shadow: var(--shadow);
 }
 
@@ -670,7 +679,7 @@ canvas {
   z-index: 4;
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
-  background: #0d121a;
+  background: #0d0d0d;
 }
 
 .tool-options-header strong,
@@ -707,7 +716,7 @@ canvas {
 
 .control-group h3 {
   margin: 0 0 8px;
-  color: #dce6f2;
+  color: #e6e6e6;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0;
@@ -752,7 +761,7 @@ canvas {
 .field input:focus,
 .field select:focus,
 button:focus-visible {
-  outline: 1px solid #8ea2ff;
+  outline: 1px solid #ff6a5a;
   outline-offset: 1px;
 }
 
@@ -798,7 +807,7 @@ button:focus-visible {
 }
 
 .segmented button.active {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.82), rgba(47, 125, 255, 0.68));
+  background: linear-gradient(135deg, rgba(255, 45, 45, 0.86), rgba(255, 90, 61, 0.72));
   color: var(--text);
 }
 
@@ -851,9 +860,15 @@ button:focus-visible {
   background: transparent;
 }
 
+.mini-button-row button:has(img:only-child):hover img,
+.mini-button-row button:has(img:only-child):focus-visible img {
+  filter: brightness(1.28);
+  transform: scale(1.12);
+}
+
 .mini-button-row button.active {
-  border-color: rgba(139, 92, 246, 0.78);
-  color: #c7d2fe;
+  border-color: rgba(255, 45, 45, 0.78);
+  color: #ffb0a3;
 }
 
 .warning {
@@ -975,8 +990,8 @@ button:focus-visible {
 
 .batch-step.active,
 .batch-step.drag-over {
-  border-color: rgba(139, 92, 246, 0.68);
-  background: #121928;
+  border-color: rgba(255, 45, 45, 0.68);
+  background: #171111;
 }
 
 .batch-step.drag-over {
@@ -1026,7 +1041,7 @@ button:focus-visible {
 }
 
 .batch-step-number {
-  color: #a7b5ff;
+  color: #ff9a88;
 }
 
 .batch-step-fields {
@@ -1077,7 +1092,7 @@ button:focus-visible {
   align-items: center;
   overflow: hidden;
   border-top: 1px solid var(--line);
-  background: #080c12;
+  background: #070707;
   color: var(--muted);
   font-size: 11px;
 }
@@ -1095,7 +1110,7 @@ button:focus-visible {
 .statusbar span:last-child {
   margin-left: auto;
   border-right: 0;
-  color: #c7d2fe;
+  color: #ffb0a3;
 }
 
 .toast {
@@ -1108,7 +1123,7 @@ button:focus-visible {
   padding: 9px 12px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  background: #111824;
+  background: #111111;
   color: var(--text);
   box-shadow: var(--shadow);
   opacity: 0;
@@ -1126,7 +1141,7 @@ button:focus-visible {
   }
 
   .topbar {
-    grid-template-columns: auto minmax(180px, 1fr) minmax(120px, 190px) auto;
+    grid-template-columns: auto minmax(180px, 1fr) auto;
   }
 
   .brand p,

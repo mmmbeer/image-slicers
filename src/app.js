@@ -90,8 +90,8 @@ function selectTool(id) {
   activeTool = nextTool;
   root.dataset.tool = activeTool.id;
   activeInstance = activeTool.create(context);
-  activeToolName.textContent = activeTool.name;
-  activeToolDescription.textContent = activeTool.description;
+  if (activeToolName) activeToolName.textContent = activeTool.name;
+  if (activeToolDescription) activeToolDescription.textContent = activeTool.description;
 
   for (const button of nav.querySelectorAll("button")) {
     button.classList.toggle("active", button.dataset.toolId === activeTool.id);
