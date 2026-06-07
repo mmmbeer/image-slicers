@@ -10,34 +10,31 @@
 </head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar" aria-label="Image tools">
+    <header class="topbar">
       <div class="brand">
-        <div class="brand-mark"><img src="./src/assets/logo.png" alt="" /></div>
+        <div class="brand-mark"><img src="./src/assets/logo-icon.png" alt="" /></div>
         <div>
           <h1>Imaginarium</h1>
-          <p>Local raster asset utilities</p>
+          <p>Raster workbench</p>
         </div>
       </div>
-      <nav id="toolNav" class="tool-nav"></nav>
-    </aside>
+      <nav id="toolNav" class="tool-nav" aria-label="Image tools"></nav>
+      <div class="active-tool">
+        <div id="activeToolName" class="active-tool-name">Nine Slicer</div>
+        <div id="activeToolDescription" class="active-tool-description"></div>
+      </div>
+      <div class="toolbar" aria-label="Workspace actions">
+        <label class="icon-button import-button" title="Import image" aria-label="Import image">
+          <span aria-hidden="true">+</span>
+          <input id="fileInput" type="file" accept="image/*" />
+        </label>
+        <button id="resetButton" class="icon-button" type="button" title="Reset tool" aria-label="Reset tool">R</button>
+        <button id="exportButton" class="primary-button" type="button" disabled>Export</button>
+        <button id="zipButton" class="primary-button" type="button" disabled>ZIP</button>
+      </div>
+    </header>
 
     <main class="workspace">
-      <header class="topbar">
-        <div class="active-tool">
-          <div id="activeToolName" class="active-tool-name">Nine Slicer</div>
-          <div id="activeToolDescription" class="active-tool-description"></div>
-        </div>
-        <div class="toolbar" aria-label="Workspace actions">
-          <label class="icon-button import-button" title="Import image">
-            <span aria-hidden="true">+</span>
-            <input id="fileInput" type="file" accept="image/*" />
-          </label>
-          <button id="resetButton" class="icon-button" type="button" title="Reset tool" aria-label="Reset tool">R</button>
-          <button id="exportButton" class="primary-button" type="button" disabled>Export</button>
-          <button id="zipButton" class="primary-button" type="button" disabled>ZIP</button>
-        </div>
-      </header>
-
       <section id="dropZone" class="tool-host" aria-label="Image workspace">
         <div id="toolRoot" class="tool-root"></div>
         <div id="emptyState" class="empty-state">
@@ -47,6 +44,14 @@
         </div>
       </section>
     </main>
+
+    <footer class="statusbar" aria-label="Workspace status">
+      <span id="statusTool">Tool: -</span>
+      <span id="statusFile">File: none</span>
+      <span id="statusDimensions">Image: -</span>
+      <span id="statusExports">Exports: 0</span>
+      <span id="statusMode">Ready</span>
+    </footer>
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
