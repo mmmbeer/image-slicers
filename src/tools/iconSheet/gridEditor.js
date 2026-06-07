@@ -103,7 +103,7 @@ export function onGridPointerDown(tool, event) {
   if (tool.mode !== "grid" || !tool.asset) return;
   const hit = getGridCellAtPointer(tool, event);
   if (tool.selectedCellIndex && (!hit || hit.cell.index !== tool.selectedCellIndex)) {
-    startClearSelectionDrag(tool, event);
+    clearGridSelection(tool);
     return;
   }
   const cropHit = getGridCropEdgeAtPointer(tool, event);
@@ -194,19 +194,6 @@ function getDragTarget(tool, cellIndex) {
   return tool.selectedCellIndex === cellIndex ? "cell" : "clear";
 }
 
-function startClearSelectionDrag(tool, event) {
-  tool.gridDrag = {
-    pointerId: event.pointerId,
-    startX: event.clientX,
-    startY: event.clientY,
-    lastX: event.clientX,
-    lastY: event.clientY,
-    moved: false,
-    cellIndex: null,
-    target: "clear",
-  };
-}
-
 export function onGridPointerCancel(tool, event) {
   if (!tool.gridDrag || tool.gridDrag.pointerId !== event.pointerId) return;
   tool.gridDrag = null;
@@ -267,8 +254,17 @@ export function positionGridZoomPopover(tool, grid, fit) {
   const x = cell.x * fit.scale;
   const y = cell.y * fit.scale;
   const w = cell.width * fit.scale;
-  tool.gridZoomPopover.style.left = `${Math.max(8, canvasLeft + x + w / 2)}px`;
-  tool.gridZoomPopover.style.top = `${Math.max(8, canvasTop + y + 8)}px`;
+  const h = cell.height * fit.scale;
+  const popoverWidth = tool.gridZoomPopover.offsetWidth || 220;
+  const popoverHeight = tool.gridZoomPopover.offsetHeight || 44;
+  const stageWidth = stageRect.width;
+  const centerX = canvasLeft + x + w / 2;
+  const left = clampNumber(centerX, 8 + popoverWidth / 2, Math.max(8 + popoverWidth / 2, stageWidth - 8 - popoverWidth / 2));
+  const aboveTop = canvasTop + y - popoverHeight - 8;
+  const belowTop = canvasTop + y + h + 8;
+  const top = aboveTop >= 8 ? aboveTop : belowTop;
+  tool.gridZoomPopover.style.left = `${Math.round(left)}px`;
+  tool.gridZoomPopover.style.top = `${Math.round(top)}px`;
 }
 
 export function getAdjustedSourceRect(tool, cell) {

@@ -223,7 +223,8 @@
   patternPointer("pointerup", centerX + 122, centerY);
   await wait(250);
   assert(!document.querySelector('[data-role="selected-toolbar"]').hidden, "pattern selected-object toolbar did not show");
-  assert(document.querySelector('[data-role="pattern-options"]').textContent.includes("Use the floating toolbar"), "pattern transform controls were not removed from the side panel");
+  assert(!document.querySelector('[data-role="pattern-options"]'), "pattern mode options card was not removed from the side panel");
+  assert(document.querySelectorAll('[data-role="selected-toolbar"] img[src*="src/assets/"]').length >= 7, "pattern selected-object toolbar is not using asset icons");
   document.querySelector('[data-action="pattern-preview"]').click();
   await wait(250);
   assert(!document.querySelector('[data-role="pattern-preview-modal"]').hidden, "pattern preview modal did not open");

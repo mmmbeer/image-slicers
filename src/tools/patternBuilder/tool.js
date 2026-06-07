@@ -1062,6 +1062,7 @@ class PatternBuilder {
   }
 
   renderOptions() {
+    if (!this.options) return;
     const selected = this.getObject(this.selectedId);
     if (this.mode === "combined") {
       this.options.innerHTML = combinedOptions(selected, this.scene.scatterGroups);
@@ -1283,13 +1284,13 @@ class PatternBuilder {
     this.selectedToolbar.style.left = `${Math.round(centerX)}px`;
     this.selectedToolbar.style.top = `${Math.max(8, Math.round(topY))}px`;
     this.selectedToolbar.innerHTML = `
-      <button type="button" data-action="flip-x" title="Flip horizontal">Flip H</button>
-      <button type="button" data-action="flip-y" title="Flip vertical">Flip V</button>
-      <button type="button" data-action="back" title="Move backward">Back</button>
-      <button type="button" data-action="front" title="Move forward">Front</button>
-      <button type="button" data-action="duplicate" title="Duplicate">Duplicate</button>
-      <button type="button" data-action="toggle-selected-lock" title="Lock">${object.locked ? "Unlock" : "Lock"}</button>
-      <button type="button" data-action="delete" title="Delete">Delete</button>
+      ${toolbarIconButton("flip-x", "Flip horizontal", "flip-horizontal.png")}
+      ${toolbarIconButton("flip-y", "Flip vertical", "flip-vertical.png")}
+      ${toolbarIconButton("back", "Move backward", "layer-down.png")}
+      ${toolbarIconButton("front", "Move forward", "layer-up.png")}
+      ${toolbarIconButton("duplicate", "Duplicate", "duplicate.png")}
+      ${toolbarIconButton("toggle-selected-lock", object.locked ? "Unlock" : "Lock", object.locked ? "unlock.png" : "lock.png")}
+      ${toolbarIconButton("delete", "Delete", "close.png")}
     `;
   }
 
@@ -1431,7 +1432,7 @@ function template(settings) {
           <div class="field-grid" data-background-option="image">
             <button class="secondary-file-button" type="button" data-action="background-image">Image</button>
           </div>
-          <div class="field range-field">
+          <div class="field range-field" data-background-option="image">
             <div class="range-control">
               <label>Zoom:</label>
               <input type="number" min="0.15" max="4" step="0.05" data-role="zoom" />
@@ -1444,10 +1445,6 @@ function template(settings) {
         <div class="control-group">
           <h3>Sources</h3>
           <div class="pattern-source-list" data-role="source-list"></div>
-        </div>
-        <div class="control-group">
-          <h3>Mode Options</h3>
-          <div data-role="pattern-options"></div>
         </div>
         <div class="control-group">
           <div class="control-header">
@@ -1536,6 +1533,10 @@ function settingsTemplate(settings) {
       <div class="pattern-modal-foot"><button class="primary-button" type="button" data-action="close-settings">OK</button></div>
     </div>
   `;
+}
+
+function toolbarIconButton(action, label, icon) {
+  return `<button type="button" data-action="${action}" title="${label}" aria-label="${label}"><img src="./src/assets/${icon}" alt="" aria-hidden="true" /></button>`;
 }
 
 function numberField(label, key, value, min, max, step) {
