@@ -291,28 +291,38 @@ function toggleResultPopover(source, anchor) {
   if (!grid) return;
 
   resultPopover = document.createElement("div");
-  resultPopover.className = "result-popover";
+  resultPopover.className = "result-slideout";
   resultPopover.setAttribute("role", "dialog");
   resultPopover.setAttribute("aria-label", "Expanded results");
   resultPopover.innerHTML = `
-    <div class="result-popover-head">
+    <div class="result-slideout-head">
       <strong>${title?.querySelector("h2")?.textContent || panel?.querySelector(".pane-title h2")?.textContent || "Results"}</strong>
-      <button class="icon-button" type="button" title="Close results" aria-label="Close results">
-        <img src="${assetIcon("close")}" alt="" aria-hidden="true" />
+      <button class="icon-button" type="button" title="Collapse results" aria-label="Collapse results">
+        <img src="${assetIcon("down-chevron")}" alt="" aria-hidden="true" />
       </button>
     </div>
   `;
   const clone = grid.cloneNode(true);
-  clone.classList.add("result-popover-grid");
+  clone.classList.add("result-slideout-grid");
+  copyCanvasPixels(grid, clone);
   resultPopover.append(clone);
   root.append(resultPopover);
 
-  const hostRect = root.getBoundingClientRect();
-  const anchorRect = anchor.getBoundingClientRect();
-  resultPopover.style.right = `${Math.max(12, hostRect.right - anchorRect.right)}px`;
-  resultPopover.style.bottom = "12px";
+  requestAnimationFrame(() => resultPopover?.classList.add("open"));
   resultPopover.querySelector("button").addEventListener("click", closeResultPopover);
   setTimeout(() => document.addEventListener("pointerdown", onOutsideResultPopover, { capture: true }), 0);
+}
+
+function copyCanvasPixels(sourceRoot, cloneRoot) {
+  const sourceCanvases = [...sourceRoot.querySelectorAll("canvas")];
+  const cloneCanvases = [...cloneRoot.querySelectorAll("canvas")];
+  sourceCanvases.forEach((sourceCanvas, index) => {
+    const cloneCanvas = cloneCanvases[index];
+    if (!cloneCanvas) return;
+    cloneCanvas.width = sourceCanvas.width;
+    cloneCanvas.height = sourceCanvas.height;
+    cloneCanvas.getContext("2d").drawImage(sourceCanvas, 0, 0);
+  });
 }
 
 function onOutsideResultPopover(event) {
@@ -323,7 +333,9 @@ function onOutsideResultPopover(event) {
 
 function closeResultPopover() {
   document.removeEventListener("pointerdown", onOutsideResultPopover, { capture: true });
-  resultPopover?.remove();
+  const closing = resultPopover;
+  closing?.classList.remove("open");
+  setTimeout(() => closing?.remove(), 160);
   resultPopover = null;
 }
 

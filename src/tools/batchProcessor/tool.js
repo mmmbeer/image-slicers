@@ -392,7 +392,13 @@ class BatchProcessor {
     for (let index = 0; index < max; index += 1) {
       const asset = this.assets[index];
       const format = this.getOutputFormat();
-      this.previewRoot.append(createPreviewCard(this.getOutputFilename(getMetadata(asset, index, this.assets.length), format), `${asset.width} x ${asset.height}`));
+      const card = createPreviewCard(this.getOutputFilename(getMetadata(asset, index, this.assets.length), format), `${asset.width} x ${asset.height}`);
+      const canvas = document.createElement("canvas");
+      canvas.width = 96;
+      canvas.height = 96;
+      drawImageThumbnail(asset.image, asset.width, asset.height, canvas);
+      card.append(canvas);
+      this.previewRoot.append(card);
     }
   }
 
@@ -825,6 +831,15 @@ function drawFittedCanvas(source, target, ctx) {
   const width = source.width * scale;
   const height = source.height * scale;
   ctx.drawImage(source, (target.width - width) / 2, (target.height - height) / 2, width, height);
+}
+
+function drawImageThumbnail(image, width, height, target) {
+  const ctx = target.getContext("2d");
+  clearCanvas(target, ctx);
+  const scale = Math.min(target.width / width, target.height / height, 1);
+  const drawWidth = width * scale;
+  const drawHeight = height * scale;
+  ctx.drawImage(image, (target.width - drawWidth) / 2, (target.height - drawHeight) / 2, drawWidth, drawHeight);
 }
 
 function clearCanvas(canvas, ctx) {
