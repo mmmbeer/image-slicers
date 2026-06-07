@@ -110,6 +110,12 @@
   pointer("pointerup", cell2Center);
   await wait(100);
   assert(!document.querySelector('[data-role="grid-zoom-popover"]').hidden, "cell click did not select a grid cell");
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await wait(100);
+  assert(document.querySelector('[data-role="grid-zoom-popover"]').hidden, "escape did not clear selected grid cell");
+  pointer("pointerdown", cell2Center);
+  pointer("pointerup", cell2Center);
+  await wait(100);
   const cell2Drag = gridPoint(58, 24);
   pointer("pointerdown", cell2Center);
   pointer("pointermove", cell2Drag);

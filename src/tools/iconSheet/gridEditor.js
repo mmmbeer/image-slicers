@@ -1,4 +1,5 @@
 import { clampInt, clampNumber } from "../../core/math.js";
+import { getGridCropEdgeAtPointer, resetGridCrops, updateGridCropFromPointer, updateGridHover } from "./gridCrop.js";
 
 export function getGrid(tool) {
   const rows = clampInt(tool.inputs.rows.value, 1, 64);
@@ -76,10 +77,7 @@ export function loadActiveCellZoom(tool) {
 export function resetAllCellAdjustments(tool) {
   tool.gridAdjustments.clear();
   tool.gridBaseAdjustment = { offsetX: 0, offsetY: 0 };
-  tool.gridCrop.left = 0;
-  tool.gridCrop.right = 0;
-  tool.gridCrop.top = 0;
-  tool.gridCrop.bottom = 0;
+  resetGridCrops(tool);
   loadActiveCellZoom(tool);
   tool.render();
 }
@@ -89,6 +87,14 @@ export function bindGridPointerEvents(tool) {
   tool.gridPreviewCanvas.addEventListener("pointermove", (event) => onGridPointerMove(tool, event));
   tool.gridPreviewCanvas.addEventListener("pointerup", (event) => onGridPointerUp(tool, event));
   tool.gridPreviewCanvas.addEventListener("pointercancel", (event) => onGridPointerCancel(tool, event));
+  tool.gridPreviewCanvas.addEventListener("pointerleave", () => {
+    tool.gridPreviewCanvas.style.cursor = "default";
+    tool.gridPreviewCanvas.title = "";
+  });
+  tool.gridKeyHandler = (event) => {
+    if (event.key === "Escape" && tool.mode === "grid" && tool.selectedCellIndex) clearGridSelection(tool);
+  };
+  document.addEventListener("keydown", tool.gridKeyHandler);
 }
 
 export function onGridPointerDown(tool, event) {
@@ -105,7 +111,10 @@ export function onGridPointerDown(tool, event) {
     return;
   }
   const hit = getGridCellAtPointer(tool, event);
-  if (!hit) return;
+  if (!hit) {
+    if (tool.selectedCellIndex) startClearSelectionDrag(tool, event);
+    return;
+  }
   try {
     tool.gridPreviewCanvas.setPointerCapture(event.pointerId);
   } catch {
@@ -119,11 +128,15 @@ export function onGridPointerDown(tool, event) {
     lastY: event.clientY,
     moved: false,
     cellIndex: hit.cell.index,
-    target: tool.selectedCellIndex ? (hit.cell.index === tool.selectedCellIndex ? "cell" : "none") : "all",
+    target: getDragTarget(tool, hit.cell.index),
   };
 }
 
 export function onGridPointerMove(tool, event) {
+  if (!tool.gridDrag) {
+    updateGridHover(tool, event);
+    return;
+  }
   if (!tool.gridDrag || tool.gridDrag.pointerId !== event.pointerId) return;
   if (tool.gridDrag.type === "crop") {
     updateGridCropFromPointer(tool, event);
@@ -143,6 +156,7 @@ export function onGridPointerMove(tool, event) {
   const sourceDy = dy / scale;
   if (tool.gridDrag.target === "cell" && tool.selectedCellIndex) nudgeCellAdjustment(tool, tool.selectedCellIndex, sourceDx, sourceDy);
   else if (tool.gridDrag.target === "all") nudgeBaseGridAdjustment(tool, sourceDx, sourceDy);
+  else if (tool.gridDrag.target === "clear") tool.gridDrag.moved = true;
   tool.render();
 }
 
@@ -155,9 +169,37 @@ export function onGridPointerUp(tool, event) {
   }
   if (drag.type === "crop") return;
   if (drag.moved) return;
+  if (drag.target === "clear") {
+    clearGridSelection(tool);
+    return;
+  }
   tool.selectedCellIndex = tool.selectedCellIndex === drag.cellIndex ? null : drag.cellIndex;
   loadActiveCellZoom(tool);
   tool.render();
+}
+
+export function clearGridSelection(tool) {
+  tool.selectedCellIndex = null;
+  loadActiveCellZoom(tool);
+  tool.render();
+}
+
+function getDragTarget(tool, cellIndex) {
+  if (!tool.selectedCellIndex) return "all";
+  return tool.selectedCellIndex === cellIndex ? "cell" : "clear";
+}
+
+function startClearSelectionDrag(tool, event) {
+  tool.gridDrag = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    lastX: event.clientX,
+    lastY: event.clientY,
+    moved: false,
+    cellIndex: null,
+    target: "clear",
+  };
 }
 
 export function onGridPointerCancel(tool, event) {
@@ -206,44 +248,6 @@ export function getGridCellAtPointer(tool, event) {
     && sourceY <= item.y + item.height
   ));
   return cell ? { cell, fit } : null;
-}
-
-export function getGridCropEdgeAtPointer(tool, event) {
-  const hit = getGridCellAtPointer(tool, event);
-  if (!hit) return null;
-  const rect = tool.gridPreviewCanvas.getBoundingClientRect();
-  const fit = hit.fit;
-  const x = (event.clientX - rect.left) / fit.scale;
-  const y = (event.clientY - rect.top) / fit.scale;
-  const crop = tool.gridCrop;
-  const cell = hit.cell;
-  const cropLeft = cell.x + cell.width * crop.left;
-  const cropRight = cell.x + cell.width * (1 - crop.right);
-  const cropTop = cell.y + cell.height * crop.top;
-  const cropBottom = cell.y + cell.height * (1 - crop.bottom);
-  const tolerance = Math.max(5 / fit.scale, 2);
-  const edges = [
-    { edge: "left", d: Math.abs(x - cropLeft), inside: y >= cropTop && y <= cropBottom },
-    { edge: "right", d: Math.abs(x - cropRight), inside: y >= cropTop && y <= cropBottom },
-    { edge: "top", d: Math.abs(y - cropTop), inside: x >= cropLeft && x <= cropRight },
-    { edge: "bottom", d: Math.abs(y - cropBottom), inside: x >= cropLeft && x <= cropRight },
-  ].filter((item) => item.inside && item.d <= tolerance);
-  edges.sort((a, b) => a.d - b.d);
-  return edges[0] ? { edge: edges[0].edge, cell } : null;
-}
-
-export function updateGridCropFromPointer(tool, event) {
-  const drag = tool.gridDrag;
-  const rect = tool.gridPreviewCanvas.getBoundingClientRect();
-  const fit = getGridPreviewFit(tool);
-  if (!fit || !drag?.cell) return;
-  const x = ((event.clientX - rect.left) / rect.width) * tool.asset.width;
-  const y = ((event.clientY - rect.top) / rect.height) * tool.asset.height;
-  const cell = drag.cell;
-  if (drag.edge === "left") tool.setGridCropEdge("left", (x - cell.x) / cell.width);
-  if (drag.edge === "right") tool.setGridCropEdge("right", (cell.x + cell.width - x) / cell.width);
-  if (drag.edge === "top") tool.setGridCropEdge("top", (y - cell.y) / cell.height);
-  if (drag.edge === "bottom") tool.setGridCropEdge("bottom", (cell.y + cell.height - y) / cell.height);
 }
 
 export function positionGridZoomPopover(tool, grid, fit) {

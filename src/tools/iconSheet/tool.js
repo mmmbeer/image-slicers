@@ -1,5 +1,6 @@
 import { clampNumber } from "../../core/math.js";
 import { defaultCrop, resetCrop, setCropEdge } from "./crop.js";
+import { resetGridCrops, setGridCropEdge } from "./gridCrop.js";
 import { bindInputEvents, createPreviewCard, role, setWarning } from "../../ui/dom.js";
 import {
   bindGridPointerEvents,
@@ -43,7 +44,7 @@ class IconSheet {
     this.konvaImage = null;
     this.gridAdjustments = new Map();
     this.gridBaseAdjustment = { offsetX: 0, offsetY: 0 };
-    this.gridCrop = defaultCrop();
+    this.gridCrops = new Map();
     this.singleCrop = defaultCrop();
     this.gridOverlays = { centerLines: false, sourceEdge: false };
     this.selectedCellIndex = null;
@@ -116,6 +117,7 @@ class IconSheet {
   unmount() {
     clearTimeout(this.renderTimer);
     this.stage?.destroy();
+    if (this.gridKeyHandler) document.removeEventListener("keydown", this.gridKeyHandler);
     this.stage = null;
     this.root = null;
   }
@@ -136,7 +138,7 @@ class IconSheet {
     this.inputs.padding.value = "0";
     this.gridAdjustments.clear();
     this.gridBaseAdjustment = { offsetX: 0, offsetY: 0 };
-    resetCrop(this.gridCrop);
+    resetGridCrops(this);
     resetCrop(this.singleCrop);
     this.selectedCellIndex = null;
     loadActiveCellZoom(this);
@@ -184,7 +186,7 @@ class IconSheet {
   }
 
   setGridCropEdge(edge, value) {
-    setCropEdge(this.gridCrop, edge, value);
+    if (this.gridDrag?.cell) setGridCropEdge(this, this.gridDrag.cell.index, edge, value);
   }
 
   setSingleCropEdge(edge, value) {

@@ -77,9 +77,9 @@ export function iconSheetTemplate() {
           <div class="control-header">
             <h3>Grid Extraction</h3>
             <div class="mini-button-row">
-              <button data-action="toggle-grid-lines" type="button">Lines</button>
-              <button data-action="toggle-source-edge" type="button">Source</button>
-              <button data-action="reset-grid-image" type="button">Reset</button>
+              <button data-action="toggle-grid-lines" type="button" title="Show center and horizontal guide lines in each grid section">Lines</button>
+              <button data-action="toggle-source-edge" type="button" title="Show where the source image edge falls inside each section">Source</button>
+              <button data-action="reset-grid-image" type="button" title="Reset source offsets and crop regions">Reset</button>
             </div>
           </div>
           <div class="field-grid">

@@ -1,6 +1,7 @@
 import { getAdjustedSourceRect, getGrid, positionGridZoomPopover } from "./gridEditor.js";
 import { applyCropToRects, cropRect } from "./crop.js";
 import { drawImageTransparent } from "./drawImage.js";
+import { getGridCrop } from "./gridCrop.js";
 
 export function drawGridPreview(tool) {
   if (!tool.asset) return;
@@ -26,7 +27,8 @@ export function drawGridPreview(tool) {
     const h = cell.height * fit.scale;
     const source = getAdjustedSourceRect(tool, cell);
     const dest = { x, y, width: w, height: h };
-    const cropped = applyCropToRects(source, dest, tool.gridCrop);
+    const crop = getGridCrop(tool, cell.index);
+    const cropped = applyCropToRects(source, dest, crop);
     ctx.save();
     ctx.beginPath();
     ctx.rect(x, y, w, h);
@@ -36,7 +38,7 @@ export function drawGridPreview(tool) {
     if (tool.gridOverlays.sourceEdge) drawSourceEdge(ctx, tool, source, dest);
     ctx.restore();
     if (tool.gridOverlays.centerLines) drawCenterLines(ctx, x, y, w, h);
-    drawCropZone(ctx, cropRect(dest, tool.gridCrop));
+    drawCropZone(ctx, cropRect(dest, crop));
     ctx.strokeRect(x, y, w, h);
     if (cell.index === tool.selectedCellIndex) drawSelectedCell(ctx, x, y, w, h);
   }
@@ -61,7 +63,21 @@ function drawCropZone(ctx, rect) {
   ctx.strokeStyle = "#a6e3a1";
   ctx.lineWidth = 2;
   ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+  drawAnchor(ctx, rect.x, rect.y + rect.height / 2);
+  drawAnchor(ctx, rect.x + rect.width, rect.y + rect.height / 2);
+  drawAnchor(ctx, rect.x + rect.width / 2, rect.y);
+  drawAnchor(ctx, rect.x + rect.width / 2, rect.y + rect.height);
   ctx.restore();
+}
+
+function drawAnchor(ctx, x, y) {
+  ctx.fillStyle = "#a6e3a1";
+  ctx.strokeStyle = "#0f151d";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.rect(x - 4, y - 4, 8, 8);
+  ctx.fill();
+  ctx.stroke();
 }
 
 function drawSourceEdge(ctx, tool, source, dest) {
@@ -95,7 +111,7 @@ export function renderGridCellToCanvas(tool, canvas, cell, size) {
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, size, size);
   const source = getAdjustedSourceRect(tool, cell);
-  const cropped = applyCropToRects(source, { x: 0, y: 0, width: size, height: size }, tool.gridCrop);
+  const cropped = applyCropToRects(source, { x: 0, y: 0, width: size, height: size }, getGridCrop(tool, cell.index));
   drawImageTransparent(ctx, tool.asset.image, cropped.source, cropped.dest);
   return canvas;
 }
