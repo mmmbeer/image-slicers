@@ -622,17 +622,57 @@ canvas {
   padding: 10px;
 }
 
+.batch-step.active,
+.batch-step.drag-over {
+  border-color: var(--line-strong);
+  background: #111923;
+}
+
+.batch-step.drag-over {
+  outline: 1px dashed var(--accent);
+  outline-offset: 2px;
+}
+
 .batch-step-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.batch-step-head[data-action="select-step"] {
+  cursor: pointer;
+}
+
+.batch-step.active .batch-step-head,
+.batch-add-step .batch-step-head {
   margin-bottom: 8px;
 }
 
+.batch-step-grip {
+  flex: 0 0 auto;
+  min-height: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 4px;
+  cursor: grab;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.batch-step-grip:active {
+  cursor: grabbing;
+}
+
 .batch-step-head strong {
+  flex: 1;
   min-width: 0;
   font-size: 12px;
+}
+
+.batch-step-number {
+  color: var(--accent);
 }
 
 .batch-step-fields {
@@ -646,12 +686,6 @@ canvas {
 
 .batch-step-fields .field-grid {
   gap: 8px;
-}
-
-.batch-empty-line {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.4;
 }
 
 .background-remover-layout {

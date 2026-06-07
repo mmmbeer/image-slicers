@@ -62,6 +62,8 @@ class BatchProcessor {
     this.handlesOwnImports = true;
     this.assets = [];
     this.steps = [];
+    this.activeStepId = null;
+    this.draggedStepId = null;
     this.previewTimer = 0;
     this.previewCanvas = document.createElement("canvas");
     this.previewCanvas.width = 1;
@@ -82,8 +84,6 @@ class BatchProcessor {
     this.previewContext = this.preview.getContext("2d");
     this.batchInfo = role(root, "batch-info");
     this.stepList = role(root, "step-list");
-    this.addStep = role(root, "add-step");
-    this.stepType = role(root, "step-type");
     this.warning = role(root, "warning");
     this.previewRoot = role(root, "previews");
     this.exportCount = role(root, "export-count");
@@ -100,7 +100,6 @@ class BatchProcessor {
     this.multiInput.addEventListener("change", () => this.loadFiles([...this.multiInput.files]));
     this.folderInput.addEventListener("change", () => this.loadFiles([...this.folderInput.files]));
     this.zipInput.addEventListener("change", () => this.loadZipFile(this.zipInput.files?.[0]));
-    this.addStep.addEventListener("click", () => this.appendStep(this.stepType.value));
     this.root.querySelector('[data-action="clear-steps"]').addEventListener("click", () => this.clearSteps());
     this.root.querySelector('[data-action="export-recipe"]').addEventListener("click", () => this.exportRecipe());
     this.recipeInput.addEventListener("change", () => this.importRecipe(this.recipeInput.files?.[0]));
@@ -136,7 +135,6 @@ class BatchProcessor {
       return;
     }
     this.assets = assets;
-    if (!this.steps.length) this.seedDefaultSteps();
     this.context.setEmptyStateHidden(true);
     this.context.notify(`Loaded ${assets.length} image${assets.length === 1 ? "" : "s"}`);
     this.render();
@@ -164,39 +162,32 @@ class BatchProcessor {
 
   loadImage(asset) {
     this.assets = [asset];
-    if (!this.steps.length) this.seedDefaultSteps();
     this.context.setEmptyStateHidden(true);
     this.render();
   }
 
   reset() {
     this.steps = [];
+    this.activeStepId = null;
     this.output = { format: "image/png", quality: 0.92, rename: "{{filename}}_processed" };
     this.format.value = this.output.format;
     this.quality.value = String(this.output.quality);
     this.rename.value = this.output.rename;
-    if (this.assets.length) this.seedDefaultSteps();
     this.render();
-  }
-
-  seedDefaultSteps() {
-    const asset = this.assets[0];
-    this.steps = [{
-      id: makeId(),
-      type: "resize",
-      params: { width: asset?.width || 512, height: asset?.height || 512, mode: "preserve" },
-    }];
   }
 
   appendStep(type) {
     const spec = TRANSFORM_MAP.get(type);
     if (!spec) return;
-    this.steps.push({ id: makeId(), type, params: structuredClone(spec.defaults) });
+    const step = { id: makeId(), type, params: structuredClone(spec.defaults) };
+    this.steps.push(step);
+    this.activeStepId = step.id;
     this.render();
   }
 
   clearSteps() {
     this.steps = [];
+    this.activeStepId = null;
     this.render();
   }
 
@@ -234,20 +225,19 @@ class BatchProcessor {
 
   renderStepList() {
     this.stepList.innerHTML = "";
-    if (!this.steps.length) {
-      const empty = document.createElement("div");
-      empty.className = "batch-empty-line";
-      empty.textContent = "No transformations selected.";
-      this.stepList.append(empty);
-      return;
+    if (this.activeStepId && !this.steps.some((step) => step.id === this.activeStepId)) {
+      this.activeStepId = this.steps[0]?.id || null;
     }
     this.steps.forEach((step, index) => this.stepList.append(this.createStepEditor(step, index)));
+    this.stepList.append(this.createAddStepCard());
   }
 
   createStepEditor(step, index) {
     const spec = TRANSFORM_MAP.get(step.type);
+    const isActive = step.id === this.activeStepId;
     const row = document.createElement("div");
-    row.className = "batch-step";
+    row.className = `batch-step${isActive ? " active" : ""}`;
+    row.dataset.stepId = step.id;
     row.innerHTML = `
       <div class="batch-step-head">
         <strong>${index + 1}. ${spec?.label || step.type}</strong>
@@ -261,13 +251,57 @@ class BatchProcessor {
     `;
     const fields = row.querySelector(".batch-step-fields");
     fields.append(...fieldsForStep(step));
+    fields.hidden = !isActive;
+    const head = row.querySelector(".batch-step-head");
+    head.dataset.action = "select-step";
+    head.setAttribute("aria-expanded", isActive ? "true" : "false");
+    const grip = document.createElement("button");
+    grip.className = "batch-step-grip";
+    grip.type = "button";
+    grip.draggable = true;
+    grip.dataset.action = "drag-step";
+    grip.title = "Drag to reorder";
+    grip.textContent = "::";
+    head.prepend(grip);
+    head.querySelector("strong").innerHTML = `<span class="batch-step-number">${index + 1}</span> ${spec?.label || step.type}`;
+    row.querySelector('[data-action="up"]').textContent = "^";
+    row.querySelector('[data-action="down"]').textContent = "v";
+    row.querySelector('[data-action="remove"]').textContent = "x";
+    head.addEventListener("click", (event) => {
+      if (event.target.closest("button")) return;
+      this.activeStepId = isActive ? null : step.id;
+      this.render();
+    });
     row.querySelector('[data-action="up"]').disabled = index === 0;
     row.querySelector('[data-action="down"]').disabled = index === this.steps.length - 1;
     row.querySelector('[data-action="up"]').addEventListener("click", () => this.moveStep(index, -1));
     row.querySelector('[data-action="down"]').addEventListener("click", () => this.moveStep(index, 1));
     row.querySelector('[data-action="remove"]').addEventListener("click", () => {
+      const nextStep = this.steps[index + 1] || this.steps[index - 1] || null;
       this.steps.splice(index, 1);
+      if (this.activeStepId === step.id) this.activeStepId = nextStep?.id || null;
       this.render();
+    });
+    grip.addEventListener("dragstart", (event) => {
+      this.draggedStepId = step.id;
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", step.id);
+    });
+    row.addEventListener("dragover", (event) => {
+      if (!this.draggedStepId || this.draggedStepId === step.id) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      row.classList.add("drag-over");
+    });
+    row.addEventListener("dragleave", () => row.classList.remove("drag-over"));
+    row.addEventListener("drop", (event) => {
+      event.preventDefault();
+      row.classList.remove("drag-over");
+      this.moveStepById(this.draggedStepId, step.id);
+    });
+    row.addEventListener("dragend", () => {
+      this.draggedStepId = null;
+      row.classList.remove("drag-over");
     });
     bindInputEvents([...fields.querySelectorAll("input, select")], (event) => {
       const input = event.currentTarget;
@@ -277,11 +311,45 @@ class BatchProcessor {
     return row;
   }
 
+  createAddStepCard() {
+    const card = document.createElement("div");
+    card.className = "batch-step batch-add-step";
+    card.innerHTML = `
+      <div class="batch-step-head">
+        <strong>${this.steps.length + 1} Add Step</strong>
+      </div>
+      <div class="batch-step-fields">
+        <div class="field">
+          <label for="batch-step-type">Transformation</label>
+          <select id="batch-step-type" data-role="step-type">
+            ${TRANSFORMS.map((item) => `<option value="${item.type}">${item.label}</option>`).join("")}
+          </select>
+        </div>
+        <button class="primary-button full-button" data-role="add-step" type="button">Add Step</button>
+      </div>
+    `;
+    const select = card.querySelector('[data-role="step-type"]');
+    card.querySelector('[data-role="add-step"]').addEventListener("click", () => this.appendStep(select.value));
+    return card;
+  }
+
   moveStep(index, direction) {
     const next = index + direction;
     if (next < 0 || next >= this.steps.length) return;
     const [step] = this.steps.splice(index, 1);
     this.steps.splice(next, 0, step);
+    this.activeStepId = step.id;
+    this.render();
+  }
+
+  moveStepById(sourceId, targetId) {
+    const sourceIndex = this.steps.findIndex((step) => step.id === sourceId);
+    const targetIndex = this.steps.findIndex((step) => step.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
+    const [step] = this.steps.splice(sourceIndex, 1);
+    this.steps.splice(targetIndex, 0, step);
+    this.activeStepId = step.id;
+    this.draggedStepId = null;
     this.render();
   }
 
@@ -353,6 +421,7 @@ class BatchProcessor {
       this.steps = (recipe.steps || [])
         .filter((step) => TRANSFORM_MAP.has(step.type))
         .map((step) => ({ id: makeId(), type: step.type, params: { ...TRANSFORM_MAP.get(step.type).defaults, ...step.params } }));
+      this.activeStepId = this.steps[0]?.id || null;
       this.output = { ...this.output, ...recipe.output };
       this.format.value = this.output.format;
       this.quality.value = String(this.output.quality);
@@ -396,13 +465,6 @@ function template() {
             <h3>Transform Stack</h3>
             <button class="icon-button" type="button" data-action="clear-steps" title="Clear steps">×</button>
           </div>
-          <div class="field">
-            <label for="batch-step-type">Add transformation</label>
-            <select id="batch-step-type" data-role="step-type">
-              ${TRANSFORMS.map((item) => `<option value="${item.type}">${item.label}</option>`).join("")}
-            </select>
-          </div>
-          <button class="primary-button full-button" data-role="add-step" type="button">Add Step</button>
           <div class="batch-step-list" data-role="step-list"></div>
         </div>
         <div class="control-group">
