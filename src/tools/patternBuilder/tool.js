@@ -187,7 +187,10 @@ class PatternBuilder {
     this.canvas.addEventListener("pointerup", (event) => this.endDrag(event));
     this.canvas.addEventListener("pointercancel", (event) => this.endDrag(event));
     this.canvas.addEventListener("wheel", (event) => this.onWheel(event), { passive: false });
-    this.canvas.addEventListener("dragover", (event) => event.preventDefault());
+    this.canvas.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
     this.canvas.addEventListener("drop", (event) => this.onCanvasDrop(event));
     document.addEventListener("keydown", this.boundKeyDown);
     document.addEventListener("pointerdown", this.boundDocumentPointerDown, { capture: true });
@@ -198,6 +201,10 @@ class PatternBuilder {
     if (!this.exportMenu?.hidden && !event.target.closest(".pattern-side-header")) {
       this.closeExportMenu();
     }
+    if (event.target === this.settingsModal) this.closeSettings();
+    if (event.target === this.patternPreviewModal) this.closePatternPreview();
+    if (event.target === this.scatterModal) this.closeScatterModal();
+    if (event.target === this.confirmModal) this.closeConfirm();
   }
 
   onClick(event) {
@@ -296,7 +303,7 @@ class PatternBuilder {
     this.updateAll();
   }
 
-  addSourceAsset(asset) {
+  addSourceAsset(asset, placement = null) {
     if (!asset?.image) return;
     if (asset.width * asset.height > MAX_SOURCE_PIXELS) {
       this.notify(`${asset.fileName} is too large for a responsive stamp workflow.`);
@@ -318,7 +325,7 @@ class PatternBuilder {
     source.dataUrl = canvas.toDataURL(source.mimeType === "image/webp" ? "image/webp" : "image/png");
     this.scene.sources.push(source);
     this.sourceImages.set(id, asset.image);
-    this.addObjectFromSource(id, { x: this.scene.tile.width / 2, y: this.scene.tile.height / 2 });
+    this.addObjectFromSource(id, placement || { x: this.scene.tile.width / 2, y: this.scene.tile.height / 2 });
     this.context.setEmptyStateHidden(true);
     this.notify(`Imported ${asset.fileName}`);
   }
@@ -492,13 +499,35 @@ class PatternBuilder {
 
   onCanvasDrop(event) {
     event.preventDefault();
+    event.stopPropagation();
+    const point = this.canvasToTile(event);
+    const files = [...(event.dataTransfer?.files || [])].filter((file) => file.type?.startsWith("image/"));
+    if (files.length) {
+      files.forEach(async (file, index) => {
+        try {
+          const asset = await this.context.imageLoader.loadImageFile(file);
+          const offset = index * 18;
+          this.addSourceAsset(asset, point ? { x: wrap(point.x + offset, this.scene.tile.width), y: wrap(point.y + offset, this.scene.tile.height) } : null);
+        } catch (error) {
+          this.notify(error.message);
+        }
+      });
+      return;
+    }
     const sourceId = event.dataTransfer?.getData("text/source-id");
     if (!sourceId) return;
-    const point = this.canvasToTile(event);
     if (point) this.addObjectFromSource(sourceId, point);
   }
 
   onKeyDown(event) {
+    if (event.key === "Escape") {
+      this.closeExportMenu();
+      this.closeSettings();
+      this.closePatternPreview();
+      this.closeScatterModal();
+      this.closeConfirm();
+      return;
+    }
     if (!this.root || !this.selectedId || event.target.closest("input, select, textarea")) return;
     const object = this.getObject(this.selectedId);
     if (!object || object.locked) return;
@@ -1000,7 +1029,7 @@ class PatternBuilder {
     this.renderLayers();
     this.updateStatus();
     this.scheduleRender();
-    this.context.setEmptyStateHidden(this.scene.sources.length > 0);
+    this.context.setEmptyStateHidden(true);
     this.context.setDirtyState();
   }
 
@@ -1013,6 +1042,9 @@ class PatternBuilder {
     this.inputs.backgroundType.value = this.scene.tile.background.type;
     this.inputs.backgroundColor.value = this.scene.tile.background.color || "#000000";
     this.inputs.zoom.value = String(this.zoom);
+    this.root.querySelectorAll("[data-background-option]").forEach((element) => {
+      element.hidden = element.dataset.backgroundOption !== this.scene.tile.background.type;
+    });
   }
 
   renderSources() {
@@ -1111,12 +1143,17 @@ class PatternBuilder {
     this.scatterModal.hidden = false;
     this.scatterModal.innerHTML = `
       <div class="pattern-scatter-card">
-        <div class="pane-title">
+        <div class="pattern-modal-head">
           <h2>Scatter Pattern</h2>
-          <button type="button" data-action="close-scatter">Close</button>
+          <button class="icon-button" type="button" data-action="close-scatter" title="Close" aria-label="Close"><img src="./src/assets/close.png" alt="" aria-hidden="true" /></button>
         </div>
         <div class="pattern-scatter-body">
           ${scatterOptions(this.scene.sources, this.scatter, this.lastScatterResult)}
+        </div>
+        <div class="pattern-modal-foot">
+          <button type="button" data-action="close-scatter">Cancel</button>
+          <button type="button" data-action="new-seed">New seed</button>
+          <button class="primary-button" type="button" data-action="generate-scatter">Generate Pattern</button>
         </div>
       </div>
     `;
@@ -1140,9 +1177,12 @@ class PatternBuilder {
     this.confirmModal.hidden = false;
     this.confirmModal.innerHTML = `
       <div class="pattern-confirm-card">
-        <h2>${escapeHtml(title)}</h2>
-        <p>${escapeHtml(message)}</p>
-        <div class="button-row">
+        <div class="pattern-modal-head">
+          <h2>${escapeHtml(title)}</h2>
+          <button class="icon-button" type="button" data-action="confirm-cancel" title="Close" aria-label="Close"><img src="./src/assets/close.png" alt="" aria-hidden="true" /></button>
+        </div>
+        <div class="pattern-modal-body"><p>${escapeHtml(message)}</p></div>
+        <div class="pattern-modal-foot">
           <button type="button" data-action="confirm-cancel">Cancel</button>
           <button class="primary-button" type="button" data-action="confirm-ok">${escapeHtml(confirmLabel)}</button>
         </div>
@@ -1166,16 +1206,17 @@ class PatternBuilder {
     this.patternPreviewModal.hidden = false;
     this.patternPreviewModal.innerHTML = `
       <div class="pattern-preview-card">
-        <div class="pattern-preview-head">
-          <strong>Pattern Preview</strong>
-          <div class="pattern-preview-controls">
-            <label>Zoom <input data-role="pattern-preview-zoom" type="range" min="0.25" max="4" step="0.05" value="${this.patternPreviewZoom}" /></label>
-            <label><input data-role="pattern-boundaries" type="checkbox" ${this.patternPreviewBoundaries ? "checked" : ""} /> Image boundary</label>
-            <button type="button" data-action="close-pattern-preview">Close</button>
-          </div>
+        <div class="pattern-modal-head pattern-preview-head">
+          <h2>Pattern Preview</h2>
+          <button class="icon-button" type="button" data-action="close-pattern-preview" title="Close" aria-label="Close"><img src="./src/assets/close.png" alt="" aria-hidden="true" /></button>
         </div>
         <div class="pattern-preview-body">
           <canvas data-role="pattern-preview-canvas"></canvas>
+        </div>
+        <div class="pattern-modal-foot pattern-preview-controls">
+          <label>Zoom <input data-role="pattern-preview-zoom" type="range" min="0.25" max="4" step="0.05" value="${this.patternPreviewZoom}" /></label>
+          <label><input data-role="pattern-boundaries" type="checkbox" ${this.patternPreviewBoundaries ? "checked" : ""} /> Image boundary</label>
+          <button type="button" data-action="close-pattern-preview">Close</button>
         </div>
       </div>
     `;
@@ -1384,8 +1425,10 @@ function template(settings) {
               <option value="image">Image</option>
             </select>
           </div>
-          <div class="field-grid">
+          <div class="field-grid" data-background-option="color">
             <div class="field"><label>Color</label><input data-role="background-color" type="color" value="#000000" /></div>
+          </div>
+          <div class="field-grid" data-background-option="image">
             <button class="secondary-file-button" type="button" data-action="background-image">Image</button>
           </div>
           <div class="field range-field">
@@ -1414,7 +1457,10 @@ function template(settings) {
           <div class="pattern-layer-list" data-role="layer-list"></div>
         </div>
         <div class="control-group">
-          <h3>Objects</h3>
+          <div class="control-header">
+            <h3>Objects</h3>
+            <button class="icon-button" type="button" data-action="import" title="Upload image" aria-label="Upload image"><img src="./src/assets/import.png" alt="" aria-hidden="true" /></button>
+          </div>
           <div class="pattern-object-list" data-role="object-list"></div>
         </div>
       </aside>
@@ -1451,11 +1497,6 @@ function scatterOptions(sources, scatter, result) {
     <label class="toggle"><input data-scatter="randomFlipX" data-role="scatter-flip-x" type="checkbox" ${scatter.randomFlipX ? "checked" : ""} /><span>Random horizontal flip</span></label>
     <label class="toggle"><input data-scatter="randomFlipY" data-role="scatter-flip-y" type="checkbox" ${scatter.randomFlipY ? "checked" : ""} /><span>Random vertical flip</span></label>
     <label class="toggle"><input data-scatter="avoidOverlap" data-role="scatter-overlap" type="checkbox" ${scatter.avoidOverlap ? "checked" : ""} /><span>Avoid overlap</span></label>
-    <div class="button-row">
-      <button type="button" data-action="generate-scatter">Generate</button>
-      <button type="button" data-action="new-seed">New seed</button>
-      <button type="button" data-action="convert-scatter">Convert to editable</button>
-    </div>
     <div class="field-help">${result || "Scatter creates logical objects that can coexist with manual objects."}</div>
   `;
 }
@@ -1483,13 +1524,16 @@ function settingsTemplate(settings) {
   ];
   return `
     <div class="pattern-settings-card">
-      <div class="pane-title"><h2>Pattern Settings</h2><button type="button" data-action="close-settings">Close</button></div>
-      ${checks.map(([key, label]) => `<label class="toggle"><input data-setting="${key}" data-role="setting-${key}" type="checkbox" ${settings[key] ? "checked" : ""} /><span>${label}</span></label>`).join("")}
-      <div class="field-grid">
-        <div class="field"><label>Snap strength</label><input data-setting="snapStrength" data-role="setting-snap" type="number" min="1" max="64" value="${settings.snapStrength}" /></div>
-        <div class="field"><label>Preview repeat</label><select data-setting="previewRepeat" data-role="setting-repeat"><option value="3" ${settings.previewRepeat === 3 ? "selected" : ""}>3 x 3</option><option value="5" ${settings.previewRepeat === 5 ? "selected" : ""}>5 x 5</option></select></div>
-        <div class="field"><label>Default export</label><select data-setting="exportFormat" data-role="setting-export"><option value="png" ${settings.exportFormat === "png" ? "selected" : ""}>PNG</option><option value="webp" ${settings.exportFormat === "webp" ? "selected" : ""}>WebP</option></select></div>
+      <div class="pattern-modal-head"><h2>Pattern Settings</h2><button class="icon-button" type="button" data-action="close-settings" title="Close" aria-label="Close"><img src="./src/assets/close.png" alt="" aria-hidden="true" /></button></div>
+      <div class="pattern-modal-body">
+        ${checks.map(([key, label]) => `<label class="toggle"><input data-setting="${key}" data-role="setting-${key}" type="checkbox" ${settings[key] ? "checked" : ""} /><span>${label}</span></label>`).join("")}
+        <div class="field-grid">
+          <div class="field"><label>Snap strength</label><input data-setting="snapStrength" data-role="setting-snap" type="number" min="1" max="64" value="${settings.snapStrength}" /></div>
+          <div class="field"><label>Preview repeat</label><select data-setting="previewRepeat" data-role="setting-repeat"><option value="3" ${settings.previewRepeat === 3 ? "selected" : ""}>3 x 3</option><option value="5" ${settings.previewRepeat === 5 ? "selected" : ""}>5 x 5</option></select></div>
+          <div class="field"><label>Default export</label><select data-setting="exportFormat" data-role="setting-export"><option value="png" ${settings.exportFormat === "png" ? "selected" : ""}>PNG</option><option value="webp" ${settings.exportFormat === "webp" ? "selected" : ""}>WebP</option></select></div>
+        </div>
       </div>
+      <div class="pattern-modal-foot"><button class="primary-button" type="button" data-action="close-settings">OK</button></div>
     </div>
   `;
 }
