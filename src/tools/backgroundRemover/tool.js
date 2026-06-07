@@ -8,6 +8,7 @@ const DEFAULTS = {
   feather: 36,
   decontaminate: true,
   decontaminationStrength: 90,
+  showMask: false,
   zoom: 1,
 };
 
@@ -26,7 +27,9 @@ class BackgroundRemover {
     this.asset = null;
     this.sourceCanvas = document.createElement("canvas");
     this.outputCanvas = document.createElement("canvas");
-    this.sample = null;
+    this.overlayCanvas = document.createElement("canvas");
+    this.samples = [];
+    this.inspectPoint = null;
     this.settings = { ...DEFAULTS };
     this.renderTimer = 0;
   }
@@ -56,12 +59,15 @@ class BackgroundRemover {
       feather: role(root, "feather"),
       decontaminate: role(root, "decontaminate"),
       decontaminationStrength: role(root, "decontamination-strength"),
+      showMask: role(root, "show-mask"),
       zoom: role(root, "zoom"),
     };
   }
 
   bindEvents() {
     this.canvas.addEventListener("click", (event) => this.sampleAtEvent(event));
+    this.canvas.addEventListener("pointermove", (event) => this.inspectAtEvent(event));
+    this.canvas.addEventListener("pointerleave", () => this.renderZooms());
     bindInputEvents(Object.values(this.inputs), () => this.readControls());
   }
 
@@ -76,9 +82,13 @@ class BackgroundRemover {
     this.sourceCanvas.height = asset.height;
     this.outputCanvas.width = asset.width;
     this.outputCanvas.height = asset.height;
+    this.overlayCanvas.width = asset.width;
+    this.overlayCanvas.height = asset.height;
     this.sourceCanvas.getContext("2d").drawImage(asset.image, 0, 0);
     this.sourceInfo.textContent = `${asset.fileName} - ${asset.width} x ${asset.height}`;
-    this.sample = null;
+    this.samples = [];
+    this.inspectPoint = null;
+    this.mask = null;
     this.render();
   }
 
@@ -89,12 +99,14 @@ class BackgroundRemover {
       if (input.type === "checkbox") input.checked = Boolean(this.settings[key]);
       else input.value = String(this.settings[key]);
     }
-    this.sample = null;
+    this.samples = [];
+    this.inspectPoint = null;
+    this.mask = null;
     this.render();
   }
 
   getExportItems() {
-    if (!this.asset || !this.sample) return [];
+    if (!this.asset || !this.samples.length) return [];
     return [{
       filename: `${safeBaseName(this.asset.fileName)}_transparent.png`,
       type: "image/png",
@@ -114,6 +126,7 @@ class BackgroundRemover {
       feather: clamp(Number(this.inputs.feather.value), 1, 255),
       decontaminate: this.inputs.decontaminate.checked,
       decontaminationStrength: clamp(Number(this.inputs.decontaminationStrength.value), 0, 100),
+      showMask: this.inputs.showMask.checked,
       zoom: clamp(Number(this.inputs.zoom.value), 1, 12),
     };
     this.scheduleRender();
@@ -121,15 +134,31 @@ class BackgroundRemover {
 
   sampleAtEvent(event) {
     if (!this.asset) return;
+    const point = this.imagePointFromEvent(event);
+    if (!point) return;
+    const sample = sampleBackground(this.sourceCanvas, point.x, point.y, this.settings.sampleSize);
+    this.samples = event.ctrlKey || event.metaKey ? [...this.samples, sample] : [sample];
+    this.inspectPoint = point;
+    this.render();
+  }
+
+  inspectAtEvent(event) {
+    if (!this.asset) return;
+    const point = this.imagePointFromEvent(event);
+    if (!point) return;
+    this.inspectPoint = point;
+    this.renderZooms();
+  }
+
+  imagePointFromEvent(event) {
     const rect = this.canvas.getBoundingClientRect();
     const canvasX = (event.clientX - rect.left) * (this.canvas.width / rect.width);
     const canvasY = (event.clientY - rect.top) * (this.canvas.height / rect.height);
     const fitted = fittedRect(this.asset.width, this.asset.height, this.canvas.width, this.canvas.height);
     const x = Math.floor((canvasX - fitted.x) / fitted.scale);
     const y = Math.floor((canvasY - fitted.y) / fitted.scale);
-    if (x < 0 || y < 0 || x >= this.asset.width || y >= this.asset.height) return;
-    this.sample = sampleBackground(this.sourceCanvas, x, y, this.settings.sampleSize);
-    this.render();
+    if (x < 0 || y < 0 || x >= this.asset.width || y >= this.asset.height) return null;
+    return { x, y };
   }
 
   scheduleRender() {
@@ -147,45 +176,50 @@ class BackgroundRemover {
       return;
     }
 
-    setWarning(this.warning, this.sample ? [] : "Click a background pixel in the preview to create the transparency mask.");
-    if (this.sample) this.process();
+    setWarning(this.warning, this.samples.length ? [] : "Click a background pixel in the preview to create the transparency mask.");
+    if (this.samples.length) this.process();
     else copyCanvas(this.sourceCanvas, this.outputCanvas);
     drawFitted(this.outputCanvas, this.canvas, this.ctx);
+    if (this.settings.showMask && this.samples.length && this.mask) drawFitted(this.overlayCanvas, this.canvas, this.ctx);
     this.renderZooms();
     this.renderSampleInfo();
     this.context.setDirtyState();
   }
 
   process() {
-    if (!this.asset || !this.sample) return;
+    if (!this.asset || !this.samples.length) return;
     const sourceCtx = this.sourceCanvas.getContext("2d");
     const outputCtx = this.outputCanvas.getContext("2d");
     const imageData = sourceCtx.getImageData(0, 0, this.asset.width, this.asset.height);
-    const result = removeBackground(imageData, this.sample, this.settings);
+    const result = removeBackground(imageData, this.samples, this.settings);
     outputCtx.putImageData(result.imageData, 0, 0);
     this.stats = result.stats;
+    this.mask = result.mask;
+    renderMaskOverlay(this.overlayCanvas, result.mask);
   }
 
   renderSampleInfo() {
-    if (!this.sample) {
+    if (!this.samples.length) {
       this.sampleInfo.textContent = "Click the image background to sample it.";
       this.maskStats.textContent = "No mask";
       return;
     }
-    const hex = rgbToHex(this.sample.srgb);
-    this.sampleInfo.innerHTML = `<span class="sample-chip" style="background:${hex}"></span>${hex} at ${this.sample.x}, ${this.sample.y}`;
+    const latest = this.samples[this.samples.length - 1];
+    const hex = rgbToHex(latest.srgb);
+    this.sampleInfo.innerHTML = `<span class="sample-chip" style="background:${hex}"></span>${this.samples.length} region${this.samples.length === 1 ? "" : "s"} - latest ${hex} at ${latest.x}, ${latest.y}`;
     const stats = this.stats || { hard: 0, soft: 0 };
     this.maskStats.textContent = `${stats.hard.toLocaleString()} hard pixels, ${stats.soft.toLocaleString()} soft edge pixels`;
   }
 
   renderZooms() {
-    if (!this.asset || !this.sample) {
+    if (!this.asset) {
       this.clearZoom(this.beforeCanvas);
       this.clearZoom(this.afterCanvas);
       return;
     }
-    drawZoom(this.sourceCanvas, this.beforeCanvas, this.sample.x, this.sample.y, this.settings.zoom);
-    drawZoom(this.outputCanvas, this.afterCanvas, this.sample.x, this.sample.y, this.settings.zoom);
+    const point = this.inspectPoint || this.samples[this.samples.length - 1] || { x: Math.floor(this.asset.width / 2), y: Math.floor(this.asset.height / 2) };
+    drawZoom(this.sourceCanvas, this.beforeCanvas, point.x, point.y, this.settings.zoom);
+    drawZoom(this.outputCanvas, this.afterCanvas, point.x, point.y, this.settings.zoom);
   }
 
   clearPreviews() {
@@ -238,6 +272,10 @@ function template() {
         </div>
         <div class="control-group">
           <h3>Hard Mask</h3>
+          <label class="toggle">
+            <input data-role="show-mask" type="checkbox" />
+            <span>Show removal highlight</span>
+          </label>
           <div class="field">
             <label>Tolerance</label>
             <input data-role="tolerance" type="range" min="0" max="255" value="${DEFAULTS.tolerance}" />
@@ -307,20 +345,28 @@ function sampleBackground(canvas, centerX, centerY, size) {
   };
 }
 
-function removeBackground(imageData, sample, settings) {
+function removeBackground(imageData, samples, settings) {
   const width = imageData.width;
   const height = imageData.height;
   const data = imageData.data;
   const total = width * height;
   const hard = new Uint8Array(total);
   const tolerance = Math.max(0.002, settings.tolerance / 255);
+  const nearestSample = new Int16Array(total);
+  nearestSample.fill(-1);
 
   if (settings.connectivity === "global") {
     for (let index = 0; index < total; index += 1) {
-      if (linearDistanceAt(data, index, sample.linear) <= tolerance) hard[index] = 1;
+      const nearest = nearestSampleIndexAt(data, index, samples);
+      if (nearest.distance <= tolerance) {
+        hard[index] = 1;
+        nearestSample[index] = nearest.index;
+      }
     }
   } else {
-    floodFill(data, width, height, sample.x, sample.y, tolerance, sample.linear, hard);
+    samples.forEach((sample, sampleIndex) => {
+      floodFill(data, width, height, sample.x, sample.y, tolerance, sample.linear, hard, nearestSample, sampleIndex);
+    });
   }
 
   const band = buildEdgeBand(hard, width, height, settings.edgeWidth);
@@ -341,7 +387,9 @@ function removeBackground(imageData, sample, settings) {
     }
     if (!band[index]) continue;
 
-    const colorDistance = linearDistanceAt(data, index, sample.linear);
+    const nearest = nearestSampleIndexAt(data, index, samples);
+    const sample = samples[nearest.index];
+    const colorDistance = nearest.distance;
     const colorAlpha = smoothstep(tolerance * 0.55, tolerance + feather, colorDistance);
     const spatialAlpha = smoothstep(0, 1, (band[index] - 1) / Math.max(1, settings.edgeWidth));
     const alpha = clamp(Math.max(colorAlpha, spatialAlpha) * sourceAlpha, 0, sourceAlpha);
@@ -358,10 +406,10 @@ function removeBackground(imageData, sample, settings) {
     out[offset + 3] = Math.round(alpha * 255);
   }
 
-  return { imageData: output, stats: { hard: hardCount, soft: softCount } };
+  return { imageData: output, mask: { hard, band, width, height }, stats: { hard: hardCount, soft: softCount } };
 }
 
-function floodFill(data, width, height, startX, startY, tolerance, targetLinear, hard) {
+function floodFill(data, width, height, startX, startY, tolerance, targetLinear, hard, nearestSample, sampleIndex) {
   const total = width * height;
   const visited = new Uint8Array(total);
   const queue = [startY * width + startX];
@@ -370,6 +418,7 @@ function floodFill(data, width, height, startX, startY, tolerance, targetLinear,
     const index = queue[cursor];
     if (linearDistanceAt(data, index, targetLinear) > tolerance) continue;
     hard[index] = 1;
+    nearestSample[index] = sampleIndex;
     const x = index % width;
     const y = Math.floor(index / width);
     for (let dy = -1; dy <= 1; dy += 1) {
@@ -385,6 +434,44 @@ function floodFill(data, width, height, startX, startY, tolerance, targetLinear,
       }
     }
   }
+}
+
+function renderMaskOverlay(canvas, mask) {
+  canvas.width = mask.width;
+  canvas.height = mask.height;
+  const ctx = canvas.getContext("2d");
+  const imageData = ctx.createImageData(mask.width, mask.height);
+  const data = imageData.data;
+  for (let index = 0; index < mask.hard.length; index += 1) {
+    const offset = index * 4;
+    if (mask.hard[index]) {
+      data[offset] = 255;
+      data[offset + 1] = 86;
+      data[offset + 2] = 98;
+      data[offset + 3] = isMaskBoundary(mask.hard, mask.width, mask.height, index) ? 210 : 72;
+    } else if (mask.band[index]) {
+      data[offset] = 126;
+      data[offset + 1] = 208;
+      data[offset + 2] = 255;
+      data[offset + 3] = 132;
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function isMaskBoundary(mask, width, height, index) {
+  const x = index % width;
+  const y = Math.floor(index / width);
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      if (dx === 0 && dy === 0) continue;
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) return true;
+      if (!mask[ny * width + nx]) return true;
+    }
+  }
+  return false;
 }
 
 function buildEdgeBand(mask, width, height, radius) {
@@ -455,6 +542,19 @@ function linearDistanceAt(data, pixelIndex, target) {
   const dg = srgbToLinear(data[offset + 1] / 255) - target[1];
   const db = srgbToLinear(data[offset + 2] / 255) - target[2];
   return Math.hypot(dr, dg, db);
+}
+
+function nearestSampleIndexAt(data, pixelIndex, samples) {
+  let bestIndex = 0;
+  let bestDistance = Infinity;
+  for (let index = 0; index < samples.length; index += 1) {
+    const distance = linearDistanceAt(data, pixelIndex, samples[index].linear);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  }
+  return { index: bestIndex, distance: bestDistance };
 }
 
 function srgbToLinear(value) {
