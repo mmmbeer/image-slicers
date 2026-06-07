@@ -474,12 +474,14 @@ canvas {
 }
 
 .button-row button,
-.mini-button-row button {
+.mini-button-row button,
+.secondary-file-button {
   min-height: 34px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--panel-2);
   color: var(--text);
+  padding: 0 10px;
 }
 
 .mini-button-row {
@@ -571,6 +573,85 @@ canvas {
 .size-option input {
   width: auto;
   min-height: auto;
+}
+
+.full-button {
+  width: 100%;
+}
+
+.batch-layout {
+  grid-template-columns: minmax(0, 1fr) 392px;
+}
+
+.batch-imports {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.batch-file-button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-height: 36px;
+  overflow: hidden;
+}
+
+.batch-file-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.secondary-file-button {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.batch-step-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.batch-step {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0d131b;
+  padding: 10px;
+}
+
+.batch-step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.batch-step-head strong {
+  min-width: 0;
+  font-size: 12px;
+}
+
+.batch-step-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.batch-step-fields .field {
+  margin: 0;
+}
+
+.batch-step-fields .field-grid {
+  gap: 8px;
+}
+
+.batch-empty-line {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .toast {

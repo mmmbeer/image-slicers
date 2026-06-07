@@ -5,11 +5,13 @@ import { getTool, getTools, registerTool } from "./toolRegistry.js";
 import { nineSlicerTool } from "./tools/nineSlicer/tool.js";
 import { iconSheetTool } from "./tools/iconSheet/tool.js";
 import { logoLibraryTool } from "./tools/logoLibrary/tool.js";
+import { batchProcessorTool } from "./tools/batchProcessor/tool.js";
 import { createToast } from "./ui/toast.js";
 
 registerTool(nineSlicerTool);
 registerTool(iconSheetTool);
 registerTool(logoLibraryTool);
+registerTool(batchProcessorTool);
 
 const nav = document.getElementById("toolNav");
 const root = document.getElementById("toolRoot");
@@ -34,6 +36,9 @@ const context = {
   canvasUtils,
   notify,
   setDirtyState: updateExportState,
+  setEmptyStateHidden(hidden) {
+    emptyState.classList.toggle("hidden", hidden);
+  },
 };
 
 function notify(message) {
@@ -71,6 +76,7 @@ function selectTool(id) {
   if (currentAsset) {
     activeInstance.loadImage(currentAsset);
   }
+  emptyState.classList.toggle("hidden", Boolean(currentAsset) || activeInstance.handlesOwnImports);
   updateExportState();
 }
 
@@ -148,8 +154,13 @@ dropZone.addEventListener("dragleave", () => {
 dropZone.addEventListener("drop", (event) => {
   event.preventDefault();
   dropZone.classList.remove("dragging");
-  const file = event.dataTransfer?.files?.[0];
-  if (file) loadFile(file);
+  const files = [...(event.dataTransfer?.files || [])];
+  if (!files.length) return;
+  if (activeInstance?.loadFiles) {
+    activeInstance.loadFiles(files);
+    return;
+  }
+  loadFile(files[0]);
 });
 
 renderNav();

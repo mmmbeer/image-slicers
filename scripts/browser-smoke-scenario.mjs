@@ -39,8 +39,12 @@
   
   async function importByDrop(name) {
     const file = makeImageFile(name);
+    await importFilesByDrop([file]);
+  }
+
+  async function importFilesByDrop(files) {
     const dt = new DataTransfer();
-    dt.items.add(file);
+    for (const file of files) dt.items.add(file);
     const zone = document.getElementById("dropZone");
     zone.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: dt }));
     zone.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }));
@@ -150,6 +154,24 @@
   document.getElementById("zipButton").click();
   await wait(800);
   assert(downloads.some((item) => item.filename.endsWith("_logo-library.zip") && item.size > 100), "logo library ZIP export missing");
+
+  document.querySelector('[data-tool-id="batch-processor"]').click();
+  await wait(300);
+  await importFilesByDrop([makeImageFile("batch-one.png"), makeImageFile("batch-two.png")]);
+  await wait(500);
+  assert(document.querySelector('[data-role="batch-info"]').textContent.includes("2 images"), "batch import did not load multiple images");
+  document.querySelector('[data-role="step-type"]').value = "text";
+  document.querySelector('[data-role="add-step"]').click();
+  document.querySelector('[data-role="step-type"]').value = "rename";
+  document.querySelector('[data-role="add-step"]').click();
+  const renameInputs = [...document.querySelectorAll('.batch-step input[name="pattern"]')];
+  renameInputs.at(-1).value = "batch_{{number}}_{{filename}}";
+  renameInputs.at(-1).dispatchEvent(new Event("input", { bubbles: true }));
+  await wait(700);
+  assert(document.querySelector('[data-role="previews"]').textContent.includes("batch_1_batch-one.png"), "batch rename placeholder preview missing");
+  document.getElementById("zipButton").click();
+  await wait(1200);
+  assert(downloads.some((item) => item.filename.endsWith("_batch-processor.zip") && item.size > 100), "batch processor ZIP export missing");
   
   return {
     failures,
