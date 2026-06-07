@@ -654,6 +654,53 @@ canvas {
   line-height: 1.4;
 }
 
+.background-remover-layout {
+  grid-template-columns: minmax(0, 1fr) 360px;
+}
+
+.background-remover-stage canvas {
+  cursor: crosshair;
+}
+
+.edge-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 180px));
+  gap: 12px;
+}
+
+.edge-compare canvas {
+  width: 180px;
+  height: 180px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background-color: #090d12;
+  background-image:
+    linear-gradient(45deg, rgba(255,255,255,0.06) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255,255,255,0.06) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.06) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.06) 75%);
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+  background-size: 20px 20px;
+}
+
+.sample-readout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  color: #c8d4df;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.sample-chip {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+}
+
 .toast {
   position: fixed;
   left: 50%;

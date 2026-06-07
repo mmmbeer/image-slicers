@@ -6,12 +6,14 @@ import { nineSlicerTool } from "./tools/nineSlicer/tool.js";
 import { iconSheetTool } from "./tools/iconSheet/tool.js";
 import { logoLibraryTool } from "./tools/logoLibrary/tool.js";
 import { batchProcessorTool } from "./tools/batchProcessor/tool.js";
+import { backgroundRemoverTool } from "./tools/backgroundRemover/tool.js";
 import { createToast } from "./ui/toast.js";
 
 registerTool(nineSlicerTool);
 registerTool(iconSheetTool);
 registerTool(logoLibraryTool);
 registerTool(batchProcessorTool);
+registerTool(backgroundRemoverTool);
 
 const nav = document.getElementById("toolNav");
 const root = document.getElementById("toolRoot");
