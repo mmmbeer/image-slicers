@@ -63,7 +63,7 @@ export function iconSheetTemplate() {
             <button data-action="flip-y" type="button">Flip Y</button>
             <button data-action="rotate-90" type="button">Rotate 90</button>
             <button data-action="center" type="button">Center</button>
-            <button data-action="reset" type="button">Reset</button>
+            <button data-action="reset" type="button" title="Reset transform"><img src="./src/assets/reset.png" alt="" aria-hidden="true" />Reset</button>
           </div>
           <h3 style="margin-top: 14px;">Filters</h3>
           <div class="field"><label for="is-brightness">Brightness</label><input id="is-brightness" data-role="brightness" type="range" min="-1" max="1" step="0.05" value="0" /></div>
@@ -77,9 +77,9 @@ export function iconSheetTemplate() {
           <div class="control-header">
             <h3>Grid Extraction</h3>
             <div class="mini-button-row">
-              <button data-action="toggle-grid-lines" type="button" title="Show center and horizontal guide lines in each grid section">Lines</button>
-              <button data-action="toggle-source-edge" type="button" title="Show where the source image edge falls inside each section">Source</button>
-              <button data-action="reset-grid-image" type="button" title="Reset source offsets and crop regions">Reset</button>
+              <button data-action="toggle-grid-lines" type="button" title="Show center and horizontal guide lines in each grid section"><img src="./src/assets/icon-grid.png" alt="" aria-hidden="true" />Lines</button>
+              <button data-action="toggle-source-edge" type="button" title="Show where the source image edge falls inside each section"><img src="./src/assets/view.png" alt="" aria-hidden="true" />Source</button>
+              <button data-action="reset-grid-image" type="button" title="Reset source offsets and crop regions"><img src="./src/assets/reset.png" alt="" aria-hidden="true" />Reset</button>
             </div>
           </div>
           <div class="field-grid">
@@ -89,7 +89,7 @@ export function iconSheetTemplate() {
             <div class="field"><label for="is-padding">Padding</label><input id="is-padding" data-role="padding" type="number" min="0" step="1" value="0" /></div>
           </div>
           <div class="button-row">
-            <button data-action="reset-cells" type="button">Reset All Cells</button>
+            <button data-action="reset-cells" type="button" title="Reset all cells"><img src="./src/assets/reset.png" alt="" aria-hidden="true" />Reset All Cells</button>
           </div>
         </div>
         <div class="warning" data-role="warning"></div>

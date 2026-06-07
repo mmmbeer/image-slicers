@@ -147,6 +147,9 @@ button:disabled {
   padding: 4px 9px;
   background: transparent;
   color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
 }
 
 .tool-nav button:hover {
@@ -171,6 +174,13 @@ button:disabled {
   white-space: nowrap;
   font-size: 12px;
   line-height: 1.2;
+}
+
+.tool-nav img {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
 }
 
 .tool-nav span {
@@ -229,6 +239,12 @@ button:disabled {
   padding: 0 8px;
 }
 
+.icon-button img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
 .icon-button:hover,
 .button-row button:hover,
 .mini-button-row button:hover,
@@ -252,6 +268,21 @@ button:disabled {
     #1a2450;
   border-color: rgba(149, 163, 255, 0.75);
   color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.primary-button img,
+.button-row button img,
+.mini-button-row button img,
+.secondary-file-button img,
+.batch-file-button img {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
 }
 
 .workspace {
@@ -371,6 +402,60 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: none;
+}
+
+.result-strip {
+  padding: 6px !important;
+  max-height: 104px;
+  overflow: hidden;
+}
+
+.result-strip-title {
+  min-height: 28px;
+  padding: 4px 6px;
+}
+
+.result-strip-title h2 {
+  font-size: 11px;
+}
+
+.result-strip-grid.thumb-grid,
+.result-strip-grid.preview-grid {
+  display: flex;
+  grid-template-columns: none;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin-top: 6px !important;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.result-strip-grid .thumb,
+.result-strip-grid .preview-card {
+  flex: 0 0 62px;
+  width: 62px;
+  padding: 4px;
+}
+
+.result-strip-grid .thumb-title {
+  height: 14px;
+  margin-bottom: 3px;
+  font-size: 9px;
+}
+
+.result-strip-grid canvas {
+  width: auto;
+  max-width: 50px;
+  max-height: 50px;
+  margin: 0 auto;
+}
+
+.result-expand-button {
+  min-width: 26px;
+  min-height: 24px;
+  height: 24px;
+  padding: 0;
 }
 
 .pane-title {
@@ -494,6 +579,54 @@ button:disabled {
 .canvas-settings-popover {
   width: 240px;
   padding: 8px;
+}
+
+.result-popover {
+  position: absolute;
+  z-index: 35;
+  width: min(720px, calc(100% - var(--rightbar-w) - 28px));
+  max-height: min(520px, calc(100% - 24px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: rgba(10, 14, 22, 0.98);
+  box-shadow: var(--shadow);
+}
+
+.result-popover-head {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.result-popover-head strong {
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.result-popover-grid.thumb-grid,
+.result-popover-grid.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+  overflow: auto;
+  padding: 8px;
+}
+
+.result-popover-grid .thumb,
+.result-popover-grid .preview-card {
+  padding: 8px;
+}
+
+.result-popover-grid canvas {
+  max-width: 100%;
+  max-height: 120px;
+  margin: 0 auto;
 }
 
 .popover-title {
@@ -673,6 +806,10 @@ button:focus-visible {
 .button-row button,
 .secondary-file-button {
   padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .mini-button-row {
@@ -684,6 +821,8 @@ button:focus-visible {
   min-height: 26px;
   padding: 0 7px;
   font-size: 11px;
+  display: inline-grid;
+  place-items: center;
 }
 
 .mini-button-row button.active {
@@ -782,8 +921,10 @@ button:focus-visible {
 
 .batch-file-button {
   position: relative;
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   min-height: var(--control-h);
   overflow: hidden;
 }

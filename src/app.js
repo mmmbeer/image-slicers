@@ -38,6 +38,16 @@ let currentAsset = null;
 const toastService = createToast(toast);
 const helperSettings = readHelperSettings();
 let settingsPopover = null;
+let resultPopover = null;
+
+const assetIcon = (name) => `./src/assets/${name}.png`;
+const toolIcons = {
+  "icon-sheet": "icon-grid",
+  "batch-processor": "batch",
+  "logo-library": "icon",
+  "nine-slicer": "view",
+  "background-remover": "eye",
+};
 
 const context = {
   imageLoader: { loadImageFile },
@@ -61,7 +71,9 @@ function renderNav() {
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.toolId = tool.id;
-    button.innerHTML = `<strong>${tool.name}</strong><span>${tool.description}</span>`;
+    const icon = toolIcons[tool.id] || "icon";
+    button.innerHTML = `<img src="${assetIcon(icon)}" alt="" aria-hidden="true" /><strong>${tool.name}</strong><span>${tool.description}</span>`;
+    button.title = tool.name;
     button.addEventListener("click", () => selectTool(tool.id));
     nav.append(button);
   }
@@ -74,6 +86,7 @@ function selectTool(id) {
   activeInstance?.unmount?.();
   root.innerHTML = "";
   closeCanvasSettings();
+  closeResultPopover();
   activeTool = nextTool;
   root.dataset.tool = activeTool.id;
   activeInstance = activeTool.create(context);
@@ -150,7 +163,7 @@ function decorateMountedTool() {
     button.dataset.action = "canvas-settings";
     button.setAttribute("aria-label", "Canvas settings");
     button.title = "Canvas settings";
-    button.textContent = "*";
+    button.innerHTML = `<img src="${assetIcon("settings")}" alt="" aria-hidden="true" />`;
     button.addEventListener("click", (event) => {
       event.stopPropagation();
       toggleCanvasSettings(button);
@@ -158,7 +171,36 @@ function decorateMountedTool() {
     firstTitle.append(button);
   }
 
+  decorateResultPanels();
   applyCanvasHelperSettings();
+}
+
+function decorateResultPanels() {
+  const resultSources = [...root.querySelectorAll(".thumb-grid, .preview-grid")].map((grid) => {
+    const panel = grid.closest(".panel");
+    const title = panel?.querySelector(".pane-title") || (grid.previousElementSibling?.classList.contains("pane-title") ? grid.previousElementSibling : null);
+    return { panel, title, grid };
+  }).filter(({ title }) => title);
+
+  for (const source of resultSources) {
+    const { panel, title, grid } = source;
+    panel?.classList.add("result-strip");
+    title.classList.add("result-strip-title");
+    grid.classList.add("result-strip-grid");
+    if (!title || title.querySelector("[data-action='expand-results']")) continue;
+    const button = document.createElement("button");
+    button.className = "icon-button result-expand-button";
+    button.type = "button";
+    button.dataset.action = "expand-results";
+    button.title = "Show larger results";
+    button.setAttribute("aria-label", "Show larger results");
+    button.innerHTML = `<img src="${assetIcon("up-chevron")}" alt="" aria-hidden="true" />`;
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleResultPopover(source, button);
+    });
+    title.append(button);
+  }
 }
 
 function readHelperSettings() {
@@ -240,6 +282,51 @@ function closeCanvasSettings() {
   settingsPopover = null;
 }
 
+function toggleResultPopover(source, anchor) {
+  if (resultPopover) {
+    closeResultPopover();
+    return;
+  }
+  const { panel, title, grid } = source;
+  if (!grid) return;
+
+  resultPopover = document.createElement("div");
+  resultPopover.className = "result-popover";
+  resultPopover.setAttribute("role", "dialog");
+  resultPopover.setAttribute("aria-label", "Expanded results");
+  resultPopover.innerHTML = `
+    <div class="result-popover-head">
+      <strong>${title?.querySelector("h2")?.textContent || panel?.querySelector(".pane-title h2")?.textContent || "Results"}</strong>
+      <button class="icon-button" type="button" title="Close results" aria-label="Close results">
+        <img src="${assetIcon("close")}" alt="" aria-hidden="true" />
+      </button>
+    </div>
+  `;
+  const clone = grid.cloneNode(true);
+  clone.classList.add("result-popover-grid");
+  resultPopover.append(clone);
+  root.append(resultPopover);
+
+  const hostRect = root.getBoundingClientRect();
+  const anchorRect = anchor.getBoundingClientRect();
+  resultPopover.style.right = `${Math.max(12, hostRect.right - anchorRect.right)}px`;
+  resultPopover.style.bottom = "12px";
+  resultPopover.querySelector("button").addEventListener("click", closeResultPopover);
+  setTimeout(() => document.addEventListener("pointerdown", onOutsideResultPopover, { capture: true }), 0);
+}
+
+function onOutsideResultPopover(event) {
+  if (!resultPopover?.contains(event.target) && !event.target.closest("[data-action='expand-results']")) {
+    closeResultPopover();
+  }
+}
+
+function closeResultPopover() {
+  document.removeEventListener("pointerdown", onOutsideResultPopover, { capture: true });
+  resultPopover?.remove();
+  resultPopover = null;
+}
+
 fileInput.addEventListener("change", () => {
   const file = fileInput.files?.[0];
   if (file) loadFile(file);
@@ -275,7 +362,10 @@ zipButton.addEventListener("click", async () => {
 });
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") closeCanvasSettings();
+  if (event.key === "Escape") {
+    closeCanvasSettings();
+    closeResultPopover();
+  }
 });
 
 dropZone.addEventListener("dragover", (event) => {

@@ -25,12 +25,20 @@
       </div>
       <div class="toolbar" aria-label="Workspace actions">
         <label class="icon-button import-button" title="Import image" aria-label="Import image">
-          <span aria-hidden="true">+</span>
+          <img src="./src/assets/import.png" alt="" aria-hidden="true" />
           <input id="fileInput" type="file" accept="image/*" />
         </label>
-        <button id="resetButton" class="icon-button" type="button" title="Reset tool" aria-label="Reset tool">R</button>
-        <button id="exportButton" class="primary-button" type="button" disabled>Export</button>
-        <button id="zipButton" class="primary-button" type="button" disabled>ZIP</button>
+        <button id="resetButton" class="icon-button" type="button" title="Reset tool" aria-label="Reset tool">
+          <img src="./src/assets/reset.png" alt="" aria-hidden="true" />
+        </button>
+        <button id="exportButton" class="primary-button" type="button" title="Export files" disabled>
+          <img src="./src/assets/export.png" alt="" aria-hidden="true" />
+          <span>Export</span>
+        </button>
+        <button id="zipButton" class="primary-button" type="button" title="Export ZIP" disabled>
+          <img src="./src/assets/zip.png" alt="" aria-hidden="true" />
+          <span>ZIP</span>
+        </button>
       </div>
     </header>
 

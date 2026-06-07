@@ -97,10 +97,13 @@ class BatchProcessor {
   }
 
   bindEvents() {
+    const clearStepsButton = this.root.querySelector('[data-action="clear-steps"]');
+    clearStepsButton.innerHTML = '<img src="./src/assets/close.png" alt="" aria-hidden="true" />';
+    clearStepsButton.setAttribute("aria-label", "Clear steps");
     this.multiInput.addEventListener("change", () => this.loadFiles([...this.multiInput.files]));
     this.folderInput.addEventListener("change", () => this.loadFiles([...this.folderInput.files]));
     this.zipInput.addEventListener("change", () => this.loadZipFile(this.zipInput.files?.[0]));
-    this.root.querySelector('[data-action="clear-steps"]').addEventListener("click", () => this.clearSteps());
+    clearStepsButton.addEventListener("click", () => this.clearSteps());
     this.root.querySelector('[data-action="export-recipe"]').addEventListener("click", () => this.exportRecipe());
     this.recipeInput.addEventListener("change", () => this.importRecipe(this.recipeInput.files?.[0]));
     bindInputEvents([this.format, this.quality, this.rename], () => {
@@ -264,9 +267,12 @@ class BatchProcessor {
     grip.textContent = "::";
     head.prepend(grip);
     head.querySelector("strong").innerHTML = `<span class="batch-step-number">${index + 1}</span> ${spec?.label || step.type}`;
-    row.querySelector('[data-action="up"]').textContent = "^";
-    row.querySelector('[data-action="down"]').textContent = "v";
-    row.querySelector('[data-action="remove"]').textContent = "x";
+    row.querySelector('[data-action="up"]').innerHTML = '<img src="./src/assets/up-chevron.png" alt="" aria-hidden="true" />';
+    row.querySelector('[data-action="up"]').setAttribute("aria-label", "Move up");
+    row.querySelector('[data-action="down"]').innerHTML = '<img src="./src/assets/down-chevron.png" alt="" aria-hidden="true" />';
+    row.querySelector('[data-action="down"]').setAttribute("aria-label", "Move down");
+    row.querySelector('[data-action="remove"]').innerHTML = '<img src="./src/assets/close.png" alt="" aria-hidden="true" />';
+    row.querySelector('[data-action="remove"]').setAttribute("aria-label", "Remove");
     head.addEventListener("click", (event) => {
       if (event.target.closest("button")) return;
       this.activeStepId = isActive ? null : step.id;
@@ -325,7 +331,7 @@ class BatchProcessor {
             ${TRANSFORMS.map((item) => `<option value="${item.type}">${item.label}</option>`).join("")}
           </select>
         </div>
-        <button class="primary-button full-button" data-role="add-step" type="button">Add Step</button>
+        <button class="primary-button full-button" data-role="add-step" type="button" title="Add step"><img src="./src/assets/plus.png" alt="" aria-hidden="true" />Add Step</button>
       </div>
     `;
     const select = card.querySelector('[data-role="step-type"]');
@@ -445,9 +451,9 @@ function template() {
           <span data-role="batch-info">No batch loaded</span>
         </div>
         <div class="batch-imports">
-          <label class="primary-button batch-file-button">Images<input data-role="multi-input" type="file" accept="image/*" multiple /></label>
-          <label class="primary-button batch-file-button">Folder<input data-role="folder-input" type="file" accept="image/*" webkitdirectory multiple /></label>
-          <label class="primary-button batch-file-button">ZIP<input data-role="zip-input" type="file" accept=".zip,application/zip" /></label>
+          <label class="primary-button batch-file-button" title="Import images"><img src="./src/assets/import.png" alt="" aria-hidden="true" />Images<input data-role="multi-input" type="file" accept="image/*" multiple /></label>
+          <label class="primary-button batch-file-button" title="Import folder"><img src="./src/assets/folder.png" alt="" aria-hidden="true" />Folder<input data-role="folder-input" type="file" accept="image/*" webkitdirectory multiple /></label>
+          <label class="primary-button batch-file-button" title="Import ZIP"><img src="./src/assets/zip.png" alt="" aria-hidden="true" />ZIP<input data-role="zip-input" type="file" accept=".zip,application/zip" /></label>
         </div>
         <div class="canvas-stage">
           <canvas data-role="batch-preview" width="720" height="480"></canvas>
@@ -490,8 +496,8 @@ function template() {
         <div class="control-group">
           <h3>Recipe</h3>
           <div class="button-row">
-            <button type="button" data-action="export-recipe">Export JSON</button>
-            <label class="batch-file-button secondary-file-button">Load JSON<input data-role="recipe-input" type="file" accept="application/json,.json" /></label>
+            <button type="button" data-action="export-recipe" title="Export recipe JSON"><img src="./src/assets/export.png" alt="" aria-hidden="true" />Export JSON</button>
+            <label class="batch-file-button secondary-file-button" title="Load recipe JSON"><img src="./src/assets/file.png" alt="" aria-hidden="true" />Load JSON<input data-role="recipe-input" type="file" accept="application/json,.json" /></label>
           </div>
         </div>
       </aside>
