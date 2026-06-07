@@ -7,6 +7,7 @@ import { iconSheetTool } from "./tools/iconSheet/tool.js";
 import { logoLibraryTool } from "./tools/logoLibrary/tool.js";
 import { batchProcessorTool } from "./tools/batchProcessor/tool.js";
 import { backgroundRemoverTool } from "./tools/backgroundRemover/tool.js";
+import { patternBuilderTool } from "./tools/patternBuilder/tool.js";
 import { createToast } from "./ui/toast.js";
 
 registerTool(nineSlicerTool);
@@ -14,6 +15,7 @@ registerTool(iconSheetTool);
 registerTool(logoLibraryTool);
 registerTool(batchProcessorTool);
 registerTool(backgroundRemoverTool);
+registerTool(patternBuilderTool);
 
 const nav = document.getElementById("toolNav");
 const root = document.getElementById("toolRoot");
@@ -47,6 +49,7 @@ const toolIcons = {
   "logo-library": "icon",
   "nine-slicer": "view",
   "background-remover": "eye",
+  "pattern-builder": "icon-grid",
 };
 
 const context = {

@@ -180,6 +180,73 @@
   document.getElementById("zipButton").click();
   await wait(1200);
   assert(downloads.some((item) => item.filename.endsWith("_batch-processor.zip") && item.size > 100), "batch processor ZIP export missing");
+
+  document.querySelector('[data-tool-id="pattern-builder"]').click();
+  await wait(300);
+  document.getElementById("resetButton").click();
+  await wait(100);
+  await importFilesByDrop([makeImageFile("stamp-one.png"), makeImageFile("stamp-two.png")]);
+  await wait(600);
+  assert(document.querySelectorAll(".pattern-source").length >= 2, "pattern builder did not import multiple source images");
+  assert(document.querySelectorAll(".pattern-object-row").length >= 2, "pattern builder did not create editable objects from imported stamps");
+  document.querySelector('[data-role="tile-size"]').value = "256";
+  document.querySelector('[data-role="tile-size"]').dispatchEvent(new Event("change", { bubbles: true }));
+  await wait(100);
+  document.querySelector('[data-transform="x"]').value = "250";
+  document.querySelector('[data-transform="x"]').dispatchEvent(new Event("input", { bubbles: true }));
+  document.querySelector('[data-transform="y"]').value = "128";
+  document.querySelector('[data-transform="y"]').dispatchEvent(new Event("input", { bubbles: true }));
+  await wait(250);
+  document.querySelector('[data-action="export-png"]').click();
+  await wait(500);
+  const patternBlob = window.__lastObjectUrlBlob;
+  const patternBitmap = await createImageBitmap(patternBlob);
+  assert(patternBitmap.width === 256 && patternBitmap.height === 256, "pattern PNG export was not the selected tile size");
+  const edgeCanvas = document.createElement("canvas");
+  edgeCanvas.width = 256;
+  edgeCanvas.height = 256;
+  const edgeCtx = edgeCanvas.getContext("2d");
+  edgeCtx.drawImage(patternBitmap, 0, 0);
+  const leftPixel = edgeCtx.getImageData(4, 128, 1, 1).data;
+  const rightPixel = edgeCtx.getImageData(250, 128, 1, 1).data;
+  assert(leftPixel[3] > 0 && rightPixel[3] > 0, "pattern object crossing right edge did not wrap to left edge");
+
+  document.querySelector('[data-role="mode"]').value = "scatter";
+  document.querySelector('[data-role="mode"]').dispatchEvent(new Event("change", { bubbles: true }));
+  await wait(150);
+  document.querySelector('[data-scatter="count"]').value = "12";
+  document.querySelector('[data-scatter="count"]').dispatchEvent(new Event("input", { bubbles: true }));
+  document.querySelector('[data-scatter="seed"]').value = "4242";
+  document.querySelector('[data-scatter="seed"]').dispatchEvent(new Event("input", { bubbles: true }));
+  document.querySelector('[data-action="generate-scatter"]').click();
+  await wait(400);
+  document.querySelector('[data-action="save-recipe"]').click();
+  await wait(250);
+  const firstRecipe = JSON.parse(await window.__lastObjectUrlBlob.text());
+  document.getElementById("resetButton").click();
+  await wait(150);
+  await importFilesByDrop([makeImageFile("stamp-one.png"), makeImageFile("stamp-two.png")]);
+  await wait(400);
+  document.querySelector('[data-role="tile-size"]').value = "256";
+  document.querySelector('[data-role="tile-size"]').dispatchEvent(new Event("change", { bubbles: true }));
+  document.querySelector('[data-role="mode"]').value = "scatter";
+  document.querySelector('[data-role="mode"]').dispatchEvent(new Event("change", { bubbles: true }));
+  await wait(150);
+  document.querySelector('[data-scatter="count"]').value = "12";
+  document.querySelector('[data-scatter="count"]').dispatchEvent(new Event("input", { bubbles: true }));
+  document.querySelector('[data-scatter="seed"]').value = "4242";
+  document.querySelector('[data-scatter="seed"]').dispatchEvent(new Event("input", { bubbles: true }));
+  document.querySelector('[data-action="generate-scatter"]').click();
+  await wait(400);
+  document.querySelector('[data-action="save-recipe"]').click();
+  await wait(250);
+  const secondRecipe = JSON.parse(await window.__lastObjectUrlBlob.text());
+  const scatterSignature = (recipe) => recipe.objects
+    .filter((item) => item.scatterGroupId)
+    .map((item) => [item.x.toFixed(2), item.y.toFixed(2), item.scaleX.toFixed(3), item.rotation.toFixed(2), item.opacity.toFixed(3), item.flipX, item.flipY].join(":"))
+    .join("|");
+  assert(scatterSignature(firstRecipe) === scatterSignature(secondRecipe), "pattern scatter was not deterministic for the same seed");
+  assert(firstRecipe.sources.length >= 2 && firstRecipe.objects.length >= 14, "pattern recipe did not preserve sources and objects");
   
   return {
     failures,
