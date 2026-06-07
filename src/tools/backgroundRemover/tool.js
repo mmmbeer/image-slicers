@@ -1,4 +1,4 @@
-import { bindInputEvents, role, setWarning } from "../../ui/dom.js";
+import { bindInputEvents, bindRangePairs, role, setWarning, syncRangePairs } from "../../ui/dom.js";
 
 const DEFAULTS = {
   tolerance: 28,
@@ -38,6 +38,7 @@ class BackgroundRemover {
     this.root = root;
     root.innerHTML = template();
     this.captureElements(root);
+    bindRangePairs(root);
     this.bindEvents();
     this.render();
   }
@@ -49,6 +50,7 @@ class BackgroundRemover {
     this.sampleInfo = role(root, "sample-info");
     this.warning = role(root, "warning");
     this.maskStats = role(root, "mask-stats");
+    this.hoverSwatch = role(root, "hover-swatch");
     this.beforeCanvas = role(root, "before-zoom");
     this.afterCanvas = role(root, "after-zoom");
     this.inputs = {
@@ -67,7 +69,10 @@ class BackgroundRemover {
   bindEvents() {
     this.canvas.addEventListener("click", (event) => this.sampleAtEvent(event));
     this.canvas.addEventListener("pointermove", (event) => this.inspectAtEvent(event));
-    this.canvas.addEventListener("pointerleave", () => this.renderZooms());
+    this.canvas.addEventListener("pointerleave", () => {
+      this.hideHoverSwatch();
+      this.renderZooms();
+    });
     bindInputEvents(Object.values(this.inputs), () => this.readControls());
   }
 
@@ -89,6 +94,7 @@ class BackgroundRemover {
     this.samples = [];
     this.inspectPoint = null;
     this.mask = null;
+    this.hideHoverSwatch();
     this.render();
   }
 
@@ -99,9 +105,11 @@ class BackgroundRemover {
       if (input.type === "checkbox") input.checked = Boolean(this.settings[key]);
       else input.value = String(this.settings[key]);
     }
+    syncRangePairs(this.root);
     this.samples = [];
     this.inspectPoint = null;
     this.mask = null;
+    this.hideHoverSwatch();
     this.render();
   }
 
@@ -145,9 +153,34 @@ class BackgroundRemover {
   inspectAtEvent(event) {
     if (!this.asset) return;
     const point = this.imagePointFromEvent(event);
-    if (!point) return;
+    if (!point) {
+      this.hideHoverSwatch();
+      return;
+    }
     this.inspectPoint = point;
+    this.updateHoverSwatch(event, point);
     this.renderZooms();
+  }
+
+  updateHoverSwatch(event, point) {
+    const rgba = getPixel(this.sourceCanvas, point.x, point.y);
+    const color = `rgb(${rgba[0]}, ${rgba[1]}, ${rgba[2]})`;
+    const stageRect = this.canvas.parentElement.getBoundingClientRect();
+    const swatchSize = 54;
+    const offset = 16;
+    let left = event.clientX - stageRect.left + offset;
+    let top = event.clientY - stageRect.top + offset;
+    if (left + swatchSize > stageRect.width - 6) left = event.clientX - stageRect.left - swatchSize - offset;
+    if (top + swatchSize > stageRect.height - 6) top = event.clientY - stageRect.top - swatchSize - offset;
+    this.hoverSwatch.style.backgroundColor = color;
+    this.hoverSwatch.style.left = `${Math.max(6, left)}px`;
+    this.hoverSwatch.style.top = `${Math.max(6, top)}px`;
+    this.hoverSwatch.title = `${rgbToHex(rgba)} at ${point.x}, ${point.y}`;
+    this.hoverSwatch.hidden = false;
+  }
+
+  hideHoverSwatch() {
+    if (this.hoverSwatch) this.hoverSwatch.hidden = true;
   }
 
   imagePointFromEvent(event) {
@@ -243,6 +276,7 @@ function template() {
         </div>
         <div class="canvas-stage background-remover-stage">
           <canvas data-role="background-preview" width="960" height="640"></canvas>
+          <div class="hover-color-swatch" data-role="hover-swatch" hidden></div>
         </div>
         <div class="warning" data-role="warning"></div>
         <div class="edge-compare">
@@ -276,9 +310,13 @@ function template() {
             <input data-role="show-mask" type="checkbox" />
             <span>Show removal highlight</span>
           </label>
-          <div class="field">
-            <label>Tolerance</label>
-            <input data-role="tolerance" type="range" min="0" max="255" value="${DEFAULTS.tolerance}" />
+          <div class="field range-field">
+            <div class="range-control">
+              <label>Tolerance:</label>
+              <input data-range-for="tolerance" type="number" />
+              <span></span>
+              <input data-role="tolerance" data-range-input type="range" min="0" max="255" value="${DEFAULTS.tolerance}" />
+            </div>
           </div>
           <div class="field">
             <label>Selection mode</label>
@@ -290,28 +328,44 @@ function template() {
         </div>
         <div class="control-group">
           <h3>Edge Recovery</h3>
-          <div class="field">
-            <label>Edge width</label>
-            <input data-role="edge-width" type="range" min="0" max="12" value="${DEFAULTS.edgeWidth}" />
+          <div class="field range-field">
+            <div class="range-control">
+              <label>Edge width:</label>
+              <input data-range-for="edge-width" type="number" />
+              <span>px</span>
+              <input data-role="edge-width" data-range-input type="range" min="0" max="12" value="${DEFAULTS.edgeWidth}" />
+            </div>
           </div>
-          <div class="field">
-            <label>Feather</label>
-            <input data-role="feather" type="range" min="1" max="255" value="${DEFAULTS.feather}" />
+          <div class="field range-field">
+            <div class="range-control">
+              <label>Feather:</label>
+              <input data-range-for="feather" type="number" />
+              <span></span>
+              <input data-role="feather" data-range-input type="range" min="1" max="255" value="${DEFAULTS.feather}" />
+            </div>
           </div>
           <label class="toggle">
             <input data-role="decontaminate" type="checkbox" checked />
             <span>Decontaminate edge color</span>
           </label>
-          <div class="field">
-            <label>Decontamination strength</label>
-            <input data-role="decontamination-strength" type="range" min="0" max="100" value="${DEFAULTS.decontaminationStrength}" />
+          <div class="field range-field">
+            <div class="range-control">
+              <label>Decontamination strength:</label>
+              <input data-range-for="decontamination-strength" type="number" />
+              <span>%</span>
+              <input data-role="decontamination-strength" data-range-input type="range" min="0" max="100" value="${DEFAULTS.decontaminationStrength}" />
+            </div>
           </div>
         </div>
         <div class="control-group">
           <h3>Inspect</h3>
-          <div class="field">
-            <label>Edge zoom</label>
-            <input data-role="zoom" type="range" min="1" max="12" value="${DEFAULTS.zoom}" />
+          <div class="field range-field">
+            <div class="range-control">
+              <label>Edge zoom:</label>
+              <input data-range-for="zoom" type="number" />
+              <span>x</span>
+              <input data-role="zoom" data-range-input type="range" min="1" max="12" value="${DEFAULTS.zoom}" />
+            </div>
           </div>
           <div class="sample-readout" data-role="mask-stats">No mask</div>
         </div>
@@ -343,6 +397,10 @@ function sampleBackground(canvas, centerX, centerY, size) {
     srgb: srgb.map((value) => Math.round(value / count)),
     linear: linear.map((value) => value / count),
   };
+}
+
+function getPixel(canvas, x, y) {
+  return canvas.getContext("2d").getImageData(x, y, 1, 1).data;
 }
 
 function removeBackground(imageData, samples, settings) {

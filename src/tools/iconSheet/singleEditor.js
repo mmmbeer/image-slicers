@@ -1,6 +1,7 @@
 import { STAGE_SIZE } from "./constants.js";
 import { applyCropToRects, resetCrop } from "./crop.js";
 import { setupSingleCrop, updateSingleCropOverlay } from "./singleCrop.js";
+import { syncRangePairs } from "../../ui/dom.js";
 
 export function setupKonva(tool) {
   if (!window.Konva) {
@@ -97,6 +98,7 @@ export function syncControlsFromNode(tool) {
   if (!tool.konvaImage) return;
   tool.inputs.scale.value = String(Math.abs(tool.konvaImage.scaleX()).toFixed(2));
   tool.inputs.rotation.value = String(Math.round(tool.konvaImage.rotation()));
+  syncRangePairs(tool.root);
 }
 
 export function flipSingle(tool, axis) {
@@ -135,6 +137,7 @@ export function resetSingleTransform(tool) {
   tool.inputs.hue.value = "0";
   tool.inputs.blur.value = "0";
   tool.inputs.pixel.value = "1";
+  syncRangePairs(tool.root);
   resetCrop(tool.singleCrop);
   applySingleControls(tool);
   updateSingleCropOverlay(tool);

@@ -12,8 +12,12 @@ export function iconSheetTemplate() {
           <div data-role="konva-stage" style="width:${STAGE_SIZE}px; height:${STAGE_SIZE}px;"></div>
           <canvas data-role="grid-preview" hidden></canvas>
           <div class="grid-zoom-popover" data-role="grid-zoom-popover" hidden>
-            <label for="is-cell-zoom">Zoom</label>
-            <input id="is-cell-zoom" data-role="cell-zoom" type="range" min="0.5" max="4" step="0.01" value="1" />
+            <div class="range-control">
+              <label for="is-cell-zoom">Zoom:</label>
+              <input data-range-for="cell-zoom" type="number" />
+              <span>x</span>
+              <input id="is-cell-zoom" data-role="cell-zoom" data-range-input type="range" min="0.5" max="4" step="0.01" value="1" />
+            </div>
           </div>
         </div>
         <div class="panel" style="padding: 12px;">
@@ -56,8 +60,8 @@ export function iconSheetTemplate() {
         </div>
         <div class="control-group" data-role="single-controls">
           <h3>Transform</h3>
-          <div class="field"><label for="is-scale">Scale</label><input id="is-scale" data-role="scale" type="range" min="0.05" max="4" step="0.01" value="1" /></div>
-          <div class="field"><label for="is-rotation">Rotation</label><input id="is-rotation" data-role="rotation" type="range" min="-180" max="180" step="1" value="0" /></div>
+          <div class="field range-field"><div class="range-control"><label for="is-scale">Scale:</label><input data-range-for="scale" type="number" /><span>x</span><input id="is-scale" data-role="scale" data-range-input type="range" min="0.05" max="4" step="0.01" value="1" /></div></div>
+          <div class="field range-field"><div class="range-control"><label for="is-rotation">Rotation:</label><input data-range-for="rotation" type="number" /><span>deg</span><input id="is-rotation" data-role="rotation" data-range-input type="range" min="-180" max="180" step="1" value="0" /></div></div>
           <div class="button-row">
             <button data-action="flip-x" type="button">Flip X</button>
             <button data-action="flip-y" type="button">Flip Y</button>
@@ -66,12 +70,12 @@ export function iconSheetTemplate() {
             <button data-action="reset" type="button" title="Reset transform"><img src="./src/assets/reset.png" alt="" aria-hidden="true" />Reset</button>
           </div>
           <h3 style="margin-top: 14px;">Filters</h3>
-          <div class="field"><label for="is-brightness">Brightness</label><input id="is-brightness" data-role="brightness" type="range" min="-1" max="1" step="0.05" value="0" /></div>
-          <div class="field"><label for="is-contrast">Contrast</label><input id="is-contrast" data-role="contrast" type="range" min="-100" max="100" step="1" value="0" /></div>
-          <div class="field"><label for="is-saturation">Saturation</label><input id="is-saturation" data-role="saturation" type="range" min="-1" max="1" step="0.05" value="0" /></div>
-          <div class="field"><label for="is-hue">Hue</label><input id="is-hue" data-role="hue" type="range" min="0" max="360" step="1" value="0" /></div>
-          <div class="field"><label for="is-blur">Blur</label><input id="is-blur" data-role="blur" type="range" min="0" max="12" step="0.5" value="0" /></div>
-          <div class="field"><label for="is-pixel">Pixelate</label><input id="is-pixel" data-role="pixel" type="range" min="1" max="32" step="1" value="1" /></div>
+          <div class="field range-field"><div class="range-control"><label for="is-brightness">Brightness:</label><input data-range-for="brightness" type="number" /><span></span><input id="is-brightness" data-role="brightness" data-range-input type="range" min="-1" max="1" step="0.05" value="0" /></div></div>
+          <div class="field range-field"><div class="range-control"><label for="is-contrast">Contrast:</label><input data-range-for="contrast" type="number" /><span>%</span><input id="is-contrast" data-role="contrast" data-range-input type="range" min="-100" max="100" step="1" value="0" /></div></div>
+          <div class="field range-field"><div class="range-control"><label for="is-saturation">Saturation:</label><input data-range-for="saturation" type="number" /><span></span><input id="is-saturation" data-role="saturation" data-range-input type="range" min="-1" max="1" step="0.05" value="0" /></div></div>
+          <div class="field range-field"><div class="range-control"><label for="is-hue">Hue:</label><input data-range-for="hue" type="number" /><span>deg</span><input id="is-hue" data-role="hue" data-range-input type="range" min="0" max="360" step="1" value="0" /></div></div>
+          <div class="field range-field"><div class="range-control"><label for="is-blur">Blur:</label><input data-range-for="blur" type="number" /><span>px</span><input id="is-blur" data-role="blur" data-range-input type="range" min="0" max="12" step="0.5" value="0" /></div></div>
+          <div class="field range-field"><div class="range-control"><label for="is-pixel">Pixelate:</label><input data-range-for="pixel" type="number" /><span>px</span><input id="is-pixel" data-role="pixel" data-range-input type="range" min="1" max="32" step="1" value="1" /></div></div>
         </div>
         <div class="control-group" data-role="grid-controls" hidden>
           <div class="control-header">

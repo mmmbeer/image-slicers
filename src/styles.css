@@ -770,6 +770,49 @@ button:focus-visible {
   accent-color: var(--accent);
 }
 
+.range-field {
+  gap: 4px;
+}
+
+.range-control {
+  display: grid;
+  grid-template-columns: minmax(82px, max-content) 58px max-content minmax(86px, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.range-control label {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.range-control input[type="number"] {
+  width: 58px;
+  min-height: 28px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: #0a0f16;
+  color: var(--text);
+  padding: 4px 6px;
+  text-align: right;
+}
+
+.range-control span {
+  min-width: 0.8em;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.range-control input[type="range"] {
+  min-width: 86px;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.grid-zoom-popover .range-control {
+  grid-template-columns: auto 54px auto 110px;
+}
+
 .field-help {
   color: var(--muted);
   font-size: 11px;
@@ -1053,6 +1096,30 @@ button:focus-visible {
   margin: 0;
 }
 
+.batch-add-step-fields {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.batch-add-step-fields .primary-button {
+  width: auto;
+  white-space: nowrap;
+}
+
+.batch-preview-stage canvas {
+  touch-action: none;
+}
+
+.batch-output-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 82px;
+  gap: 8px;
+}
+
+.batch-output-rename {
+  margin-top: 8px;
+}
+
 .edge-compare {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 180px));
@@ -1083,6 +1150,17 @@ button:focus-visible {
   height: 16px;
   border: 1px solid var(--line-strong);
   border-radius: 2px;
+}
+
+.hover-color-swatch {
+  position: absolute;
+  z-index: 8;
+  width: 54px;
+  height: 54px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 4px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(0, 0, 0, 0.58);
+  pointer-events: none;
 }
 
 .statusbar {

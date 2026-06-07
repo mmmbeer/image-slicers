@@ -1,5 +1,5 @@
 import { clampNumber } from "../../core/math.js";
-import { bindInputEvents, createPreviewCard, role, roles } from "../../ui/dom.js";
+import { bindInputEvents, bindRangePairs, createPreviewCard, role, roles, syncRangePairs } from "../../ui/dom.js";
 
 const LOGO_SIZES = [
   { size: 16, label: "Favicon 16" },
@@ -62,9 +62,13 @@ class LogoLibrary {
                 <option value="stretch">Stretch</option>
               </select>
             </div>
-            <div class="field">
-              <label for="ll-padding">Transparent padding</label>
-              <input id="ll-padding" data-role="padding" type="range" min="0" max="40" step="1" value="8" />
+            <div class="field range-field">
+              <div class="range-control">
+                <label for="ll-padding">Transparent padding:</label>
+                <input data-range-for="padding" type="number" />
+                <span>%</span>
+                <input id="ll-padding" data-role="padding" data-range-input type="range" min="0" max="40" step="1" value="8" />
+              </div>
               <span class="field-help">Percent of each output size.</span>
             </div>
           </div>
@@ -93,6 +97,7 @@ class LogoLibrary {
       sizes: roles(root, "logo-size"),
     };
 
+    bindRangePairs(root);
     bindInputEvents([this.inputs.prefix, this.inputs.fit, this.inputs.padding, ...this.inputs.sizes], () => this.render());
     this.render();
   }
@@ -111,6 +116,7 @@ class LogoLibrary {
   reset() {
     this.inputs.fit.value = "contain";
     this.inputs.padding.value = "8";
+    syncRangePairs(this.root);
     for (const input of this.inputs.sizes) input.checked = true;
     this.render();
   }

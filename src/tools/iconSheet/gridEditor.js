@@ -1,4 +1,5 @@
 import { clampInt, clampNumber } from "../../core/math.js";
+import { syncRangePairs } from "../../ui/dom.js";
 import { getGridCropEdgeAtPointer, resetGridCrops, updateGridCropFromPointer, updateGridHover } from "./gridCrop.js";
 
 export function getGrid(tool) {
@@ -71,6 +72,7 @@ export function saveActiveCellZoom(tool) {
 export function loadActiveCellZoom(tool) {
   const adjustment = tool.selectedCellIndex ? getCellAdjustment(tool, tool.selectedCellIndex) : { zoom: 1 };
   tool.inputs.cellZoom.value = String(adjustment.zoom);
+  syncRangePairs(tool.root);
   tool.gridZoomPopover.hidden = !tool.selectedCellIndex;
 }
 

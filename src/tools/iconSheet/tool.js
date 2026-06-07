@@ -1,7 +1,7 @@
 import { clampNumber } from "../../core/math.js";
 import { defaultCrop, resetCrop, setCropEdge } from "./crop.js";
 import { resetGridCrops, setGridCropEdge } from "./gridCrop.js";
-import { bindInputEvents, createPreviewCard, role, setWarning } from "../../ui/dom.js";
+import { bindInputEvents, bindRangePairs, createPreviewCard, role, setWarning, syncRangePairs } from "../../ui/dom.js";
 import {
   bindGridPointerEvents,
   getGrid,
@@ -56,6 +56,7 @@ class IconSheet {
     this.root = root;
     root.innerHTML = iconSheetTemplate();
     this.captureElements(root);
+    bindRangePairs(root);
     setupKonva(this);
     this.bindEvents();
     this.render();
@@ -142,6 +143,7 @@ class IconSheet {
     resetCrop(this.singleCrop);
     this.selectedCellIndex = null;
     loadActiveCellZoom(this);
+    syncRangePairs(this.root);
     this.render();
   }
 

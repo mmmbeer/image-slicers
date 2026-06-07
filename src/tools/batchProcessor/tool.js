@@ -2,6 +2,13 @@ import { bindInputEvents, createPreviewCard, role, setWarning } from "../../ui/d
 
 const IMAGE_EXTENSIONS = /\.(avif|bmp|gif|jpe?g|png|webp)$/i;
 const DEFAULT_TEXT = "{{filename}}";
+const GOOGLE_FONTS = [
+  "Roboto", "Open Sans", "Lato", "Montserrat", "Poppins", "Raleway", "Inter", "Oswald", "Merriweather", "Nunito",
+  "Source Sans 3", "PT Sans", "Playfair Display", "Noto Sans", "Ubuntu", "Rubik", "Work Sans", "Mulish", "Quicksand", "Manrope",
+  "Fira Sans", "Barlow", "Karla", "Libre Franklin", "Inconsolata", "Josefin Sans", "Arimo", "Bebas Neue", "Bitter", "Cabin",
+  "Crimson Text", "DM Sans", "Exo 2", "Heebo", "IBM Plex Sans", "Jost", "Libre Baskerville", "Monda", "Mukta", "Nanum Gothic",
+  "Nunito Sans", "Oxygen", "Pacifico", "Prompt", "Questrial", "Roboto Condensed", "Roboto Slab", "Source Serif 4", "Titillium Web", "Varela Round",
+];
 
 const TRANSFORMS = [
   { type: "scale", label: "Scale", defaults: { percent: 100 } },
@@ -15,7 +22,7 @@ const TRANSFORMS = [
   { type: "pad", label: "Pad", defaults: { left: 0, right: 0, top: 0, bottom: 0, color: "transparent" } },
   { type: "background", label: "Background", defaults: { color: "#ffffff" } },
   { type: "border", label: "Border", defaults: { size: 8, color: "#ffffff" } },
-  { type: "rounded", label: "Rounded Corners", defaults: { radius: 24 } },
+  { type: "rounded", label: "Rounded Corners", defaults: { radius: 24, percent: 0 } },
   { type: "opacity", label: "Opacity", defaults: { amount: 100 } },
   { type: "brightness", label: "Brightness", defaults: { amount: 100 } },
   { type: "contrast", label: "Contrast", defaults: { amount: 100 } },
@@ -32,13 +39,26 @@ const TRANSFORMS = [
     text: DEFAULT_TEXT,
     x: 24,
     y: 24,
+    width: 360,
+    height: 64,
     size: 32,
     color: "#ffffff",
-    font: "Arial",
+    font: "Roboto",
     weight: "700",
     align: "left",
     baseline: "top",
     shadow: true,
+  } },
+  { type: "watermark", label: "Image Watermark", defaults: {
+    imageData: "",
+    opacity: 35,
+    repeat: true,
+    x: 24,
+    y: 24,
+    width: 128,
+    height: 128,
+    gapX: 32,
+    gapY: 32,
   } },
   { type: "format", label: "Output Format", defaults: { format: "image/png", quality: 0.92 } },
   { type: "rename", label: "Rename", defaults: { pattern: "{{filename}}_processed" } },
@@ -64,6 +84,8 @@ class BatchProcessor {
     this.steps = [];
     this.activeStepId = null;
     this.draggedStepId = null;
+    this.previewDrag = null;
+    this.previewEdit = null;
     this.previewTimer = 0;
     this.previewCanvas = document.createElement("canvas");
     this.previewCanvas.width = 1;
@@ -94,6 +116,7 @@ class BatchProcessor {
     this.format = role(root, "output-format");
     this.quality = role(root, "output-quality");
     this.rename = role(root, "output-rename");
+    this.loadGoogleFonts();
   }
 
   bindEvents() {
@@ -110,7 +133,14 @@ class BatchProcessor {
       this.output.format = this.format.value;
       this.output.quality = clamp(Number(this.quality.value || 0.92), 0.1, 1);
       this.output.rename = this.rename.value || "{{filename}}_processed";
-      this.render();
+      this.renderDynamic();
+    });
+    this.preview.addEventListener("pointerdown", (event) => this.onPreviewPointerDown(event));
+    this.preview.addEventListener("pointermove", (event) => this.onPreviewPointerMove(event));
+    this.preview.addEventListener("pointerup", (event) => this.onPreviewPointerUp(event));
+    this.preview.addEventListener("pointercancel", (event) => this.onPreviewPointerUp(event));
+    this.preview.addEventListener("pointerleave", () => {
+      if (!this.previewDrag) this.preview.style.cursor = "default";
     });
   }
 
@@ -213,7 +243,17 @@ class BatchProcessor {
   async processAsset(asset, index) {
     let canvas = imageToCanvas(asset.image, asset.width, asset.height);
     for (const step of this.steps) {
-      canvas = applyStep(canvas, step, getMetadata(asset, index, this.assets.length));
+      canvas = await applyStep(canvas, step, getMetadata(asset, index, this.assets.length));
+      await nextFrame();
+    }
+    return canvas;
+  }
+
+  async processAssetBeforeStep(asset, index, targetStepId) {
+    let canvas = imageToCanvas(asset.image, asset.width, asset.height);
+    for (const step of this.steps) {
+      if (step.id === targetStepId) break;
+      canvas = await applyStep(canvas, step, getMetadata(asset, index, this.assets.length));
       await nextFrame();
     }
     return canvas;
@@ -221,6 +261,12 @@ class BatchProcessor {
 
   render() {
     this.renderStepList();
+    this.renderPreviewSummary();
+    this.schedulePreview();
+    this.context.setDirtyState();
+  }
+
+  renderDynamic() {
     this.renderPreviewSummary();
     this.schedulePreview();
     this.context.setDirtyState();
@@ -309,10 +355,27 @@ class BatchProcessor {
       this.draggedStepId = null;
       row.classList.remove("drag-over");
     });
-    bindInputEvents([...fields.querySelectorAll("input, select")], (event) => {
+    bindInputEvents([...fields.querySelectorAll("input, select")], async (event) => {
       const input = event.currentTarget;
-      step.params[input.name] = parseInputValue(input);
-      this.render();
+      if (input.type === "file") {
+        const file = input.files?.[0];
+        if (!file) return;
+        step.params.imageData = await readFileAsDataUrl(file);
+        step.params._image = await loadImageFromDataUrl(step.params.imageData);
+      } else {
+        step.params[input.name] = parseInputValue(input);
+        if (step.type === "rounded" && input.name === "radius") {
+          step.params.percent = radiusToPercent(step.params.radius, this.previewEdit?.baseCanvas || this.previewCanvas);
+          const percentInput = fields.querySelector('input[name="percent"]');
+          if (percentInput) percentInput.value = String(step.params.percent);
+        }
+        if (step.type === "rounded" && input.name === "percent") {
+          step.params.radius = percentToRadius(step.params.percent, this.previewEdit?.baseCanvas || this.previewCanvas);
+          const radiusInput = fields.querySelector('input[name="radius"]');
+          if (radiusInput) radiusInput.value = String(step.params.radius);
+        }
+      }
+      this.renderDynamic();
     });
     return row;
   }
@@ -324,7 +387,7 @@ class BatchProcessor {
       <div class="batch-step-head">
         <strong>${this.steps.length + 1} Add Step</strong>
       </div>
-      <div class="batch-step-fields">
+      <div class="batch-step-fields batch-add-step-fields">
         <div class="field">
           <label for="batch-step-type">Transformation</label>
           <select id="batch-step-type" data-role="step-type">
@@ -372,11 +435,158 @@ class BatchProcessor {
     }
     setWarning(this.warning, []);
     try {
-      this.previewCanvas = await this.processAsset(this.assets[0], 0);
-      drawFittedCanvas(this.previewCanvas, this.preview, this.previewContext);
+      const activeStep = this.steps.find((step) => step.id === this.activeStepId);
+      if (activeStep && (activeStep.type === "crop" || activeStep.type === "text")) {
+        const baseCanvas = await this.processAssetBeforeStep(this.assets[0], 0, activeStep.id);
+        this.previewCanvas = baseCanvas;
+        const fit = drawFittedCanvas(baseCanvas, this.preview, this.previewContext);
+        this.previewEdit = { step: activeStep, baseCanvas, fit };
+        this.drawPreviewEditOverlay();
+      } else {
+        this.previewCanvas = await this.processAsset(this.assets[0], 0);
+        drawFittedCanvas(this.previewCanvas, this.preview, this.previewContext);
+        this.previewEdit = null;
+      }
     } catch (error) {
       setWarning(this.warning, error.message);
     }
+  }
+
+  drawPreviewEditOverlay() {
+    if (!this.previewEdit) return;
+    const { step, fit } = this.previewEdit;
+    const rect = this.getStepRect(step);
+    const view = sourceRectToPreview(rect, fit);
+    const ctx = this.previewContext;
+    ctx.save();
+    if (step.type === "crop") {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+      ctx.fillRect(fit.x, fit.y, fit.width, Math.max(0, view.y - fit.y));
+      ctx.fillRect(fit.x, view.y + view.height, fit.width, Math.max(0, fit.y + fit.height - view.y - view.height));
+      ctx.fillRect(fit.x, view.y, Math.max(0, view.x - fit.x), view.height);
+      ctx.fillRect(view.x + view.width, view.y, Math.max(0, fit.x + fit.width - view.x - view.width), view.height);
+    }
+    ctx.strokeStyle = "#ff6a5a";
+    ctx.fillStyle = "#ff6a5a";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(view.x, view.y, view.width, view.height);
+    ctx.setLineDash([]);
+    for (const handle of getRectHandles(view)) {
+      ctx.fillRect(handle.x - 5, handle.y - 5, 10, 10);
+    }
+    ctx.restore();
+  }
+
+  getStepRect(step) {
+    const p = step.params;
+    if (step.type === "text") {
+      return {
+        x: Number(p.x || 0),
+        y: Number(p.y || 0),
+        width: Number(p.width || 240),
+        height: Number(p.height || Math.max(1, Number(p.size || 32) * 1.4)),
+      };
+    }
+    return {
+      x: Number(p.x || 0),
+      y: Number(p.y || 0),
+      width: Number(p.width || 1),
+      height: Number(p.height || 1),
+    };
+  }
+
+  onPreviewPointerDown(event) {
+    const hit = this.getPreviewHit(event);
+    if (!hit) return;
+    event.preventDefault();
+    this.previewDrag = {
+      pointerId: event.pointerId,
+      mode: hit.mode,
+      handle: hit.handle,
+      startPointer: hit.source,
+      startRect: this.getStepRect(this.previewEdit.step),
+    };
+    this.preview.setPointerCapture?.(event.pointerId);
+  }
+
+  onPreviewPointerMove(event) {
+    if (!this.previewEdit) return;
+    if (!this.previewDrag) {
+      const hit = this.getPreviewHit(event);
+      this.preview.style.cursor = hit ? cursorForHit(hit) : "default";
+      return;
+    }
+    if (this.previewDrag.pointerId !== event.pointerId) return;
+    const pointer = this.eventToSourcePoint(event);
+    if (!pointer) return;
+    const dx = pointer.x - this.previewDrag.startPointer.x;
+    const dy = pointer.y - this.previewDrag.startPointer.y;
+    const rect = adjustRect(this.previewDrag.startRect, dx, dy, this.previewDrag);
+    this.applyStepRect(this.previewEdit.step, rect);
+    this.renderDynamic();
+  }
+
+  onPreviewPointerUp(event) {
+    if (!this.previewDrag || this.previewDrag.pointerId !== event.pointerId) return;
+    this.preview.releasePointerCapture?.(event.pointerId);
+    this.previewDrag = null;
+  }
+
+  getPreviewHit(event) {
+    if (!this.previewEdit) return null;
+    const source = this.eventToSourcePoint(event);
+    if (!source) return null;
+    const rect = this.getStepRect(this.previewEdit.step);
+    const view = sourceRectToPreview(rect, this.previewEdit.fit);
+    const point = eventToCanvasPoint(this.preview, event);
+    const handles = getRectHandles(view);
+    const handle = handles.find((item) => Math.hypot(point.x - item.x, point.y - item.y) <= 9);
+    if (handle) return { mode: "resize", handle: handle.name, source };
+    if (point.x >= view.x && point.x <= view.x + view.width && point.y >= view.y && point.y <= view.y + view.height) {
+      return { mode: "move", source };
+    }
+    return null;
+  }
+
+  eventToSourcePoint(event) {
+    if (!this.previewEdit) return null;
+    const point = eventToCanvasPoint(this.preview, event);
+    const { fit } = this.previewEdit;
+    return {
+      x: clamp((point.x - fit.x) / fit.scale, 0, this.previewEdit.baseCanvas.width),
+      y: clamp((point.y - fit.y) / fit.scale, 0, this.previewEdit.baseCanvas.height),
+    };
+  }
+
+  applyStepRect(step, rect) {
+    const base = this.previewEdit.baseCanvas;
+    step.params.x = Math.round(clamp(rect.x, 0, base.width - 1));
+    step.params.y = Math.round(clamp(rect.y, 0, base.height - 1));
+    step.params.width = Math.round(clamp(rect.width, 1, base.width - step.params.x));
+    step.params.height = Math.round(clamp(rect.height, 1, base.height - step.params.y));
+    if (step.type === "text") {
+      step.params.size = Math.max(1, Math.round(step.params.height * 0.6));
+    }
+    this.updateActiveFieldValues(step);
+  }
+
+  updateActiveFieldValues(step) {
+    const row = this.stepList.querySelector(`[data-step-id="${step.id}"]`);
+    if (!row) return;
+    for (const input of row.querySelectorAll("input, select")) {
+      if (input.type === "file") continue;
+      if (Object.hasOwn(step.params, input.name)) input.value = String(step.params[input.name]);
+    }
+  }
+
+  loadGoogleFonts() {
+    if (document.getElementById("batch-google-fonts")) return;
+    const link = document.createElement("link");
+    link.id = "batch-google-fonts";
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?${GOOGLE_FONTS.map((font) => `family=${encodeURIComponent(font)}:wght@400;700`).join("&")}&display=swap`;
+    document.head.append(link);
   }
 
   renderPreviewSummary() {
@@ -420,7 +630,7 @@ class BatchProcessor {
     const recipe = {
       version: 1,
       output: this.output,
-      steps: this.steps.map((step) => ({ type: step.type, params: step.params })),
+      steps: this.steps.map((step) => ({ type: step.type, params: recipeParams(step.params) })),
     };
     const blob = new Blob([JSON.stringify(recipe, null, 2)], { type: "application/json" });
     this.context.downloadManager.downloadBlob(blob, "batch_recipe.json");
@@ -456,7 +666,7 @@ function template() {
           <h2>Batch Preview</h2>
           <span data-role="batch-info">No batch loaded</span>
         </div>
-        <div class="canvas-stage">
+        <div class="canvas-stage batch-preview-stage">
           <canvas data-role="batch-preview" width="720" height="480"></canvas>
         </div>
         <div class="warning" data-role="warning"></div>
@@ -484,20 +694,22 @@ function template() {
         </div>
         <div class="control-group">
           <h3>Output</h3>
-          <div class="field">
-            <label>Format</label>
-            <select data-role="output-format">
-              <option value="image/png">PNG</option>
-              <option value="image/jpeg">JPEG</option>
-              <option value="image/webp">WebP</option>
-            </select>
+          <div class="batch-output-fields">
+            <div class="field">
+              <label>Format</label>
+              <select data-role="output-format">
+                <option value="image/png">PNG</option>
+                <option value="image/jpeg">JPEG</option>
+                <option value="image/webp">WebP</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Quality</label>
+              <input data-role="output-quality" type="number" min="0.1" max="1" step="0.01" value="0.92" />
+            </div>
           </div>
-          <div class="field">
-            <label>Quality</label>
-            <input data-role="output-quality" type="number" min="0.1" max="1" step="0.01" value="0.92" />
-          </div>
-          <div class="field">
-            <label>Rename pattern</label>
+          <div class="field batch-output-rename">
+            <label>Filename</label>
             <input data-role="output-rename" type="text" value="{{filename}}_processed" />
             <span class="field-help">{{filename}}, {{extension}}, {{number}}, {{index}}, {{today}}, {{width}}, {{height}}</span>
           </div>
@@ -530,6 +742,13 @@ function fieldsForStep(step) {
     )).join("")}</select>`;
     return wrap;
   };
+  const fontSelect = (name, label) => select(name, label, GOOGLE_FONTS.map((font) => [font, font]));
+  const file = (name, label, help = "") => {
+    const wrap = document.createElement("div");
+    wrap.className = "field";
+    wrap.innerHTML = `<label>${label}</label><input name="${name}" type="file" accept="image/*" />${help ? `<span class="field-help">${help}</span>` : ""}`;
+    return wrap;
+  };
   const color = (name, label) => field(name, label, "text");
   const grid = (...items) => {
     const wrap = document.createElement("div");
@@ -550,7 +769,7 @@ function fieldsForStep(step) {
     case "pad": return [grid(field("left", "Left"), field("right", "Right")), grid(field("top", "Top"), field("bottom", "Bottom")), color("color", "Fill color")];
     case "background": return [color("color", "Fill color")];
     case "border": return [field("size", "Size"), color("color", "Color")];
-    case "rounded": return [field("radius", "Radius")];
+    case "rounded": return [grid(field("radius", "Radius px", "number", 'min="0" step="1"'), field("percent", "Radius %", "number", 'min="0" max="50" step="1"'))];
     case "opacity":
     case "brightness":
     case "contrast":
@@ -564,11 +783,19 @@ function fieldsForStep(step) {
     case "text": return [
       field("text", "Text", "text"),
       grid(field("x", "X"), field("y", "Y")),
+      grid(field("width", "Width"), field("height", "Height")),
       grid(field("size", "Size"), color("color", "Color")),
-      grid(field("font", "Font", "text"), field("weight", "Weight", "text")),
+      grid(fontSelect("font", "Font"), field("weight", "Weight", "text")),
       select("align", "Align", [["left", "Left"], ["center", "Center"], ["right", "Right"]]),
       select("baseline", "Baseline", [["top", "Top"], ["middle", "Middle"], ["bottom", "Bottom"], ["alphabetic", "Alphabetic"]]),
       select("shadow", "Shadow", [[true, "On"], [false, "Off"]]),
+    ];
+    case "watermark": return [
+      file("imageFile", "Watermark image", p.imageData ? "Image loaded into this recipe." : "Choose a PNG, JPEG, WebP, or SVG watermark."),
+      grid(field("opacity", "Opacity %", "number", 'min="0" max="100" step="1"'), select("repeat", "Repeat", [[true, "On"], [false, "Off"]])),
+      grid(field("x", "X"), field("y", "Y")),
+      grid(field("width", "Width"), field("height", "Height")),
+      grid(field("gapX", "Repeat gap X"), field("gapY", "Repeat gap Y")),
     ];
     case "format": return [select("format", "Format", [["image/png", "PNG"], ["image/jpeg", "JPEG"], ["image/webp", "WebP"]]), field("quality", "Quality", "number", 'min="0.1" max="1" step="0.01"')];
     case "rename": return [field("pattern", "Pattern", "text")];
@@ -576,7 +803,7 @@ function fieldsForStep(step) {
   }
 }
 
-function applyStep(canvas, step, metadata) {
+async function applyStep(canvas, step, metadata) {
   const p = step.params || {};
   if (step.type === "format") return canvas;
   if (step.type === "rename") return canvas;
@@ -593,11 +820,12 @@ function applyStep(canvas, step, metadata) {
     case "pad": return padCanvas(canvas, Number(p.left), Number(p.right), Number(p.top), Number(p.bottom), p.color);
     case "background": return backgroundCanvas(canvas, p.color);
     case "border": return padCanvas(canvas, Number(p.size), Number(p.size), Number(p.size), Number(p.size), p.color);
-    case "rounded": return roundedCanvas(canvas, Number(p.radius));
+    case "rounded": return roundedCanvas(canvas, getRoundedRadius(canvas, p));
     case "sharpen": return sharpenCanvas(canvas, Number(p.amount || 0.35));
     case "pixelate": return pixelateCanvas(canvas, Number(p.size || 8));
     case "threshold": return thresholdCanvas(canvas, Number(p.level || 128));
     case "text": return textCanvas(canvas, p, metadata);
+    case "watermark": return watermarkCanvas(canvas, p);
     default: return canvas;
   }
 }
@@ -710,6 +938,11 @@ function roundedCanvas(source, radius) {
   return canvas;
 }
 
+function getRoundedRadius(source, params) {
+  if (Number(params.percent || 0) > 0) return percentToRadius(params.percent, source);
+  return Number(params.radius || 0);
+}
+
 function applyFilter(source, step) {
   const p = step.params || {};
   const filters = {
@@ -811,7 +1044,13 @@ function textCanvas(source, params, metadata) {
   const canvas = newCanvas(source.width, source.height);
   const ctx = canvas.getContext("2d");
   ctx.drawImage(source, 0, 0);
-  ctx.font = `${params.weight || "400"} ${Math.max(1, Number(params.size || 32))}px ${params.font || "Arial"}`;
+  const size = Math.max(1, Number(params.size || 32));
+  const lineHeight = size * 1.18;
+  const x = Number(params.x || 0);
+  const y = Number(params.y || 0);
+  const width = Math.max(1, Number(params.width || source.width - x));
+  const height = Math.max(1, Number(params.height || lineHeight));
+  ctx.font = `${params.weight || "400"} ${size}px "${params.font || "Roboto"}"`;
   ctx.fillStyle = params.color || "#ffffff";
   ctx.textAlign = params.align || "left";
   ctx.textBaseline = params.baseline || "top";
@@ -821,7 +1060,44 @@ function textCanvas(source, params, metadata) {
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 1;
   }
-  ctx.fillText(expandPlaceholders(params.text || DEFAULT_TEXT, metadata), Number(params.x || 0), Number(params.y || 0));
+  const lines = wrapText(ctx, expandPlaceholders(params.text || DEFAULT_TEXT, metadata), width);
+  const baseX = params.align === "center" ? x + width / 2 : params.align === "right" ? x + width : x;
+  let baseY = y;
+  if (params.baseline === "middle") baseY = y + height / 2 - (Math.min(lines.length, Math.floor(height / lineHeight)) * lineHeight) / 2;
+  if (params.baseline === "bottom") baseY = y + height - Math.min(lines.length, Math.floor(height / lineHeight)) * lineHeight;
+  const maxLines = Math.max(1, Math.floor(height / lineHeight));
+  lines.slice(0, maxLines).forEach((line, index) => {
+    ctx.fillText(line, baseX, baseY + index * lineHeight);
+  });
+  return canvas;
+}
+
+async function watermarkCanvas(source, params) {
+  const canvas = newCanvas(source.width, source.height);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(source, 0, 0);
+  const image = await getWatermarkImage(params);
+  if (!image) return canvas;
+  const width = Math.max(1, Number(params.width || image.naturalWidth || 1));
+  const height = Math.max(1, Number(params.height || image.naturalHeight || 1));
+  const x = Number(params.x || 0);
+  const y = Number(params.y || 0);
+  const opacity = clamp(Number(params.opacity ?? 35), 0, 100) / 100;
+  const repeat = params.repeat === true || params.repeat === "true";
+  const gapX = Math.max(0, Number(params.gapX || 0));
+  const gapY = Math.max(0, Number(params.gapY || 0));
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  if (repeat) {
+    for (let yy = y; yy < canvas.height; yy += height + gapY) {
+      for (let xx = x; xx < canvas.width; xx += width + gapX) {
+        ctx.drawImage(image, xx, yy, width, height);
+      }
+    }
+  } else {
+    ctx.drawImage(image, x, y, width, height);
+  }
+  ctx.restore();
   return canvas;
 }
 
@@ -830,7 +1106,10 @@ function drawFittedCanvas(source, target, ctx) {
   const scale = Math.min(target.width / source.width, target.height / source.height, 1);
   const width = source.width * scale;
   const height = source.height * scale;
-  ctx.drawImage(source, (target.width - width) / 2, (target.height - height) / 2, width, height);
+  const x = (target.width - width) / 2;
+  const y = (target.height - height) / 2;
+  ctx.drawImage(source, x, y, width, height);
+  return { x, y, width, height, scale };
 }
 
 function drawImageThumbnail(image, width, height, target) {
@@ -882,6 +1161,139 @@ function parseInputValue(input) {
   if (input.tagName === "SELECT" && (input.value === "true" || input.value === "false")) return input.value === "true";
   if (input.type === "number") return Number(input.value);
   return input.value;
+}
+
+function recipeParams(params) {
+  const clean = { ...params };
+  delete clean._image;
+  return clean;
+}
+
+function radiusToPercent(radius, source) {
+  const max = Math.max(1, Math.min(source?.width || 1, source?.height || 1) / 2);
+  return Math.round(clamp(Number(radius || 0) / max * 50, 0, 50));
+}
+
+function percentToRadius(percent, source) {
+  const max = Math.max(1, Math.min(source?.width || 1, source?.height || 1) / 2);
+  return Math.round(clamp(Number(percent || 0), 0, 50) / 50 * max);
+}
+
+function wrapText(ctx, text, maxWidth) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  if (!words.length) return [""];
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(next).width > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function sourceRectToPreview(rect, fit) {
+  return {
+    x: fit.x + rect.x * fit.scale,
+    y: fit.y + rect.y * fit.scale,
+    width: rect.width * fit.scale,
+    height: rect.height * fit.scale,
+  };
+}
+
+function getRectHandles(rect) {
+  const x1 = rect.x;
+  const y1 = rect.y;
+  const x2 = rect.x + rect.width;
+  const y2 = rect.y + rect.height;
+  const cx = rect.x + rect.width / 2;
+  const cy = rect.y + rect.height / 2;
+  return [
+    { name: "nw", x: x1, y: y1 },
+    { name: "n", x: cx, y: y1 },
+    { name: "ne", x: x2, y: y1 },
+    { name: "e", x: x2, y: cy },
+    { name: "se", x: x2, y: y2 },
+    { name: "s", x: cx, y: y2 },
+    { name: "sw", x: x1, y: y2 },
+    { name: "w", x: x1, y: cy },
+  ];
+}
+
+function eventToCanvasPoint(canvas, event) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+    y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+  };
+}
+
+function adjustRect(start, dx, dy, drag) {
+  const rect = { ...start };
+  if (drag.mode === "move") {
+    rect.x += dx;
+    rect.y += dy;
+    return rect;
+  }
+  if (drag.handle.includes("w")) {
+    rect.x += dx;
+    rect.width -= dx;
+  }
+  if (drag.handle.includes("e")) rect.width += dx;
+  if (drag.handle.includes("n")) {
+    rect.y += dy;
+    rect.height -= dy;
+  }
+  if (drag.handle.includes("s")) rect.height += dy;
+  if (rect.width < 1) {
+    rect.x += rect.width - 1;
+    rect.width = 1;
+  }
+  if (rect.height < 1) {
+    rect.y += rect.height - 1;
+    rect.height = 1;
+  }
+  return rect;
+}
+
+function cursorForHit(hit) {
+  if (hit.mode === "move") return "move";
+  const cursors = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize", ne: "nesw-resize", sw: "nesw-resize", nw: "nwse-resize", se: "nwse-resize" };
+  return cursors[hit.handle] || "default";
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(reader.result));
+    reader.addEventListener("error", () => reject(reader.error || new Error("Could not read watermark image.")));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImageFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    if (!dataUrl) {
+      resolve(null);
+      return;
+    }
+    const image = new Image();
+    image.addEventListener("load", () => resolve(image));
+    image.addEventListener("error", () => reject(new Error("Could not load watermark image.")));
+    image.src = dataUrl;
+  });
+}
+
+async function getWatermarkImage(params) {
+  if (params._image) return params._image;
+  if (!params.imageData) return null;
+  params._image = await loadImageFromDataUrl(params.imageData);
+  return params._image;
 }
 
 function mimeTypeForName(name) {
