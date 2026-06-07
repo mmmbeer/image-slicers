@@ -1,4 +1,5 @@
 import { clampNumber } from "../../core/math.js";
+import { defaultCrop, resetCrop, setCropEdge } from "./crop.js";
 import { bindInputEvents, createPreviewCard, role, setWarning } from "../../ui/dom.js";
 import {
   bindGridPointerEvents,
@@ -42,6 +43,9 @@ class IconSheet {
     this.konvaImage = null;
     this.gridAdjustments = new Map();
     this.gridBaseAdjustment = { offsetX: 0, offsetY: 0 };
+    this.gridCrop = defaultCrop();
+    this.singleCrop = defaultCrop();
+    this.gridOverlays = { centerLines: false, sourceEdge: false };
     this.selectedCellIndex = null;
     this.gridDrag = null;
     this.renderTimer = 0;
@@ -104,6 +108,9 @@ class IconSheet {
     this.root.querySelector('[data-action="center"]').addEventListener("click", () => centerSingle(this));
     this.root.querySelector('[data-action="reset"]').addEventListener("click", () => resetSingleTransform(this));
     this.root.querySelector('[data-action="reset-cells"]').addEventListener("click", () => resetAllCellAdjustments(this));
+    this.root.querySelector('[data-action="toggle-grid-lines"]').addEventListener("click", (event) => this.toggleGridOverlay(event, "centerLines"));
+    this.root.querySelector('[data-action="toggle-source-edge"]').addEventListener("click", (event) => this.toggleGridOverlay(event, "sourceEdge"));
+    this.root.querySelector('[data-action="reset-grid-image"]').addEventListener("click", () => resetAllCellAdjustments(this));
   }
 
   unmount() {
@@ -129,6 +136,8 @@ class IconSheet {
     this.inputs.padding.value = "0";
     this.gridAdjustments.clear();
     this.gridBaseAdjustment = { offsetX: 0, offsetY: 0 };
+    resetCrop(this.gridCrop);
+    resetCrop(this.singleCrop);
     this.selectedCellIndex = null;
     loadActiveCellZoom(this);
     this.render();
@@ -172,6 +181,20 @@ class IconSheet {
     const selected = this.inputs.size.value;
     const raw = selected === "custom" ? this.inputs.customSize.value : selected;
     return clampNumber(Math.round(Number(raw || 128)), 8, 2048);
+  }
+
+  setGridCropEdge(edge, value) {
+    setCropEdge(this.gridCrop, edge, value);
+  }
+
+  setSingleCropEdge(edge, value) {
+    setCropEdge(this.singleCrop, edge, value);
+  }
+
+  toggleGridOverlay(event, key) {
+    this.gridOverlays[key] = !this.gridOverlays[key];
+    event.currentTarget.classList.toggle("active", this.gridOverlays[key]);
+    this.render();
   }
 
   render() {

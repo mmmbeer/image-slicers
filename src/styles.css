@@ -385,6 +385,18 @@ canvas {
   font-size: 13px;
 }
 
+.control-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.control-header h3 {
+  margin: 0;
+}
+
 .field {
   display: grid;
   gap: 6px;
@@ -461,12 +473,29 @@ canvas {
   margin-top: 10px;
 }
 
-.button-row button {
+.button-row button,
+.mini-button-row button {
   min-height: 34px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--panel-2);
   color: var(--text);
+}
+
+.mini-button-row {
+  display: flex;
+  gap: 6px;
+}
+
+.mini-button-row button {
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.mini-button-row button.active {
+  background: #203040;
+  color: var(--accent);
 }
 
 .warning {

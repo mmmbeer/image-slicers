@@ -83,9 +83,13 @@
   document.querySelector('[data-role="rows"]').dispatchEvent(new Event("input", { bubbles: true }));
   document.querySelector('[data-role="cols"]').value = "3";
   document.querySelector('[data-role="cols"]').dispatchEvent(new Event("input", { bubbles: true }));
+  document.querySelector('[data-action="toggle-grid-lines"]').click();
+  document.querySelector('[data-action="toggle-source-edge"]').click();
   await wait(300);
   const gridPreview = document.querySelector('[data-role="grid-preview"]');
   assert(gridPreview.width > 0, "grid preview did not render");
+  assert(document.querySelector('[data-action="toggle-grid-lines"]').classList.contains("active"), "grid lines toggle did not activate");
+  assert(document.querySelector('[data-action="toggle-source-edge"]').classList.contains("active"), "source edge toggle did not activate");
   assert(!document.querySelector('[data-role="cell"]'), "grid selected-cell menu was not removed");
   const gridPoint = (sourceX, sourceY) => {
     const rect = gridPreview.getBoundingClientRect();

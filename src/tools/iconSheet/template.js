@@ -74,7 +74,14 @@ export function iconSheetTemplate() {
           <div class="field"><label for="is-pixel">Pixelate</label><input id="is-pixel" data-role="pixel" type="range" min="1" max="32" step="1" value="1" /></div>
         </div>
         <div class="control-group" data-role="grid-controls" hidden>
-          <h3>Grid Extraction</h3>
+          <div class="control-header">
+            <h3>Grid Extraction</h3>
+            <div class="mini-button-row">
+              <button data-action="toggle-grid-lines" type="button">Lines</button>
+              <button data-action="toggle-source-edge" type="button">Source</button>
+              <button data-action="reset-grid-image" type="button">Reset</button>
+            </div>
+          </div>
           <div class="field-grid">
             <div class="field"><label for="is-rows">Rows</label><input id="is-rows" data-role="rows" type="number" min="1" max="64" step="1" value="3" /></div>
             <div class="field"><label for="is-cols">Columns</label><input id="is-cols" data-role="cols" type="number" min="1" max="64" step="1" value="3" /></div>

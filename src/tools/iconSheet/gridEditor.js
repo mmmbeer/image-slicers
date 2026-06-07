@@ -76,6 +76,10 @@ export function loadActiveCellZoom(tool) {
 export function resetAllCellAdjustments(tool) {
   tool.gridAdjustments.clear();
   tool.gridBaseAdjustment = { offsetX: 0, offsetY: 0 };
+  tool.gridCrop.left = 0;
+  tool.gridCrop.right = 0;
+  tool.gridCrop.top = 0;
+  tool.gridCrop.bottom = 0;
   loadActiveCellZoom(tool);
   tool.render();
 }
@@ -89,6 +93,17 @@ export function bindGridPointerEvents(tool) {
 
 export function onGridPointerDown(tool, event) {
   if (tool.mode !== "grid" || !tool.asset) return;
+  const cropHit = getGridCropEdgeAtPointer(tool, event);
+  if (cropHit) {
+    tool.gridDrag = {
+      type: "crop",
+      pointerId: event.pointerId,
+      edge: cropHit.edge,
+      cell: cropHit.cell,
+    };
+    tool.gridPreviewCanvas.setPointerCapture?.(event.pointerId);
+    return;
+  }
   const hit = getGridCellAtPointer(tool, event);
   if (!hit) return;
   try {
@@ -110,6 +125,11 @@ export function onGridPointerDown(tool, event) {
 
 export function onGridPointerMove(tool, event) {
   if (!tool.gridDrag || tool.gridDrag.pointerId !== event.pointerId) return;
+  if (tool.gridDrag.type === "crop") {
+    updateGridCropFromPointer(tool, event);
+    tool.render();
+    return;
+  }
   const dx = event.clientX - tool.gridDrag.lastX;
   const dy = event.clientY - tool.gridDrag.lastY;
   const totalDx = event.clientX - tool.gridDrag.startX;
@@ -133,6 +153,7 @@ export function onGridPointerUp(tool, event) {
   if (tool.gridPreviewCanvas.hasPointerCapture?.(event.pointerId)) {
     tool.gridPreviewCanvas.releasePointerCapture(event.pointerId);
   }
+  if (drag.type === "crop") return;
   if (drag.moved) return;
   tool.selectedCellIndex = tool.selectedCellIndex === drag.cellIndex ? null : drag.cellIndex;
   loadActiveCellZoom(tool);
@@ -187,6 +208,44 @@ export function getGridCellAtPointer(tool, event) {
   return cell ? { cell, fit } : null;
 }
 
+export function getGridCropEdgeAtPointer(tool, event) {
+  const hit = getGridCellAtPointer(tool, event);
+  if (!hit) return null;
+  const rect = tool.gridPreviewCanvas.getBoundingClientRect();
+  const fit = hit.fit;
+  const x = (event.clientX - rect.left) / fit.scale;
+  const y = (event.clientY - rect.top) / fit.scale;
+  const crop = tool.gridCrop;
+  const cell = hit.cell;
+  const cropLeft = cell.x + cell.width * crop.left;
+  const cropRight = cell.x + cell.width * (1 - crop.right);
+  const cropTop = cell.y + cell.height * crop.top;
+  const cropBottom = cell.y + cell.height * (1 - crop.bottom);
+  const tolerance = Math.max(5 / fit.scale, 2);
+  const edges = [
+    { edge: "left", d: Math.abs(x - cropLeft), inside: y >= cropTop && y <= cropBottom },
+    { edge: "right", d: Math.abs(x - cropRight), inside: y >= cropTop && y <= cropBottom },
+    { edge: "top", d: Math.abs(y - cropTop), inside: x >= cropLeft && x <= cropRight },
+    { edge: "bottom", d: Math.abs(y - cropBottom), inside: x >= cropLeft && x <= cropRight },
+  ].filter((item) => item.inside && item.d <= tolerance);
+  edges.sort((a, b) => a.d - b.d);
+  return edges[0] ? { edge: edges[0].edge, cell } : null;
+}
+
+export function updateGridCropFromPointer(tool, event) {
+  const drag = tool.gridDrag;
+  const rect = tool.gridPreviewCanvas.getBoundingClientRect();
+  const fit = getGridPreviewFit(tool);
+  if (!fit || !drag?.cell) return;
+  const x = ((event.clientX - rect.left) / rect.width) * tool.asset.width;
+  const y = ((event.clientY - rect.top) / rect.height) * tool.asset.height;
+  const cell = drag.cell;
+  if (drag.edge === "left") tool.setGridCropEdge("left", (x - cell.x) / cell.width);
+  if (drag.edge === "right") tool.setGridCropEdge("right", (cell.x + cell.width - x) / cell.width);
+  if (drag.edge === "top") tool.setGridCropEdge("top", (y - cell.y) / cell.height);
+  if (drag.edge === "bottom") tool.setGridCropEdge("bottom", (cell.y + cell.height - y) / cell.height);
+}
+
 export function positionGridZoomPopover(tool, grid, fit) {
   tool.gridZoomPopover.hidden = !tool.selectedCellIndex;
   if (!tool.selectedCellIndex) return;
@@ -211,14 +270,9 @@ export function getAdjustedSourceRect(tool, cell) {
     zoom: cellAdjustment.zoom,
   };
   const zoom = Math.max(0.5, adjustment.zoom || 1);
-  const width = Math.max(1, Math.min(tool.asset.width, cell.width / zoom));
-  const height = Math.max(1, Math.min(tool.asset.height, cell.height / zoom));
+  const width = Math.max(1, cell.width / zoom);
+  const height = Math.max(1, cell.height / zoom);
   const centerX = cell.x + cell.width / 2 + (adjustment.offsetX / 100) * cell.width;
   const centerY = cell.y + cell.height / 2 + (adjustment.offsetY / 100) * cell.height;
-  return {
-    x: clampNumber(centerX - width / 2, 0, Math.max(0, tool.asset.width - width)),
-    y: clampNumber(centerY - height / 2, 0, Math.max(0, tool.asset.height - height)),
-    width,
-    height,
-  };
+  return { x: centerX - width / 2, y: centerY - height / 2, width, height };
 }

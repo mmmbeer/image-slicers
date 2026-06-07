@@ -1,4 +1,6 @@
 import { STAGE_SIZE } from "./constants.js";
+import { applyCropToRects, resetCrop } from "./crop.js";
+import { setupSingleCrop, updateSingleCropOverlay } from "./singleCrop.js";
 
 export function setupKonva(tool) {
   if (!window.Konva) {
@@ -31,6 +33,7 @@ export function setupKonva(tool) {
     anchorFill: "#0f151d",
   });
   tool.guideLayer.add(tool.transformer);
+  setupSingleCrop(tool);
 }
 
 export function loadKonvaImage(tool) {
@@ -132,7 +135,9 @@ export function resetSingleTransform(tool) {
   tool.inputs.hue.value = "0";
   tool.inputs.blur.value = "0";
   tool.inputs.pixel.value = "1";
+  resetCrop(tool.singleCrop);
   applySingleControls(tool);
+  updateSingleCropOverlay(tool);
   tool.render();
 }
 
@@ -148,8 +153,23 @@ export function renderSingleToCanvas(tool, canvas, size) {
     tool.stage.draw();
     const context = canvas.getContext("2d");
     const exportCanvas = tool.stage.toCanvas({ pixelRatio: size / STAGE_SIZE });
+    const cropped = applyCropToRects(
+      { x: 0, y: 0, width: size, height: size },
+      { x: 0, y: 0, width: size, height: size },
+      tool.singleCrop,
+    );
     context.clearRect(0, 0, size, size);
-    context.drawImage(exportCanvas, 0, 0, size, size);
+    context.drawImage(
+      exportCanvas,
+      cropped.source.x,
+      cropped.source.y,
+      cropped.source.width,
+      cropped.source.height,
+      cropped.dest.x,
+      cropped.dest.y,
+      cropped.dest.width,
+      cropped.dest.height,
+    );
   } finally {
     tool.transformer.visible(previousTransformerVisible);
     tool.guideLayer.visible(previousGuideVisible);
