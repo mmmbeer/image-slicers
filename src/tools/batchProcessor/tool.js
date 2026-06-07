@@ -450,11 +450,6 @@ function template() {
           <h2>Batch Preview</h2>
           <span data-role="batch-info">No batch loaded</span>
         </div>
-        <div class="batch-imports">
-          <label class="primary-button batch-file-button" title="Import images"><img src="./src/assets/import.png" alt="" aria-hidden="true" />Images<input data-role="multi-input" type="file" accept="image/*" multiple /></label>
-          <label class="primary-button batch-file-button" title="Import folder"><img src="./src/assets/folder.png" alt="" aria-hidden="true" />Folder<input data-role="folder-input" type="file" accept="image/*" webkitdirectory multiple /></label>
-          <label class="primary-button batch-file-button" title="Import ZIP"><img src="./src/assets/zip.png" alt="" aria-hidden="true" />ZIP<input data-role="zip-input" type="file" accept=".zip,application/zip" /></label>
-        </div>
         <div class="canvas-stage">
           <canvas data-role="batch-preview" width="720" height="480"></canvas>
         </div>
@@ -466,6 +461,14 @@ function template() {
         <div class="preview-grid" data-role="previews"></div>
       </section>
       <aside class="settings-pane">
+        <div class="control-group">
+          <h3>Import</h3>
+          <div class="batch-imports">
+            <label class="primary-button batch-file-button" title="Import images"><img src="./src/assets/import.png" alt="" aria-hidden="true" />Images<input data-role="multi-input" type="file" accept="image/*" multiple /></label>
+            <label class="primary-button batch-file-button" title="Import folder"><img src="./src/assets/folder.png" alt="" aria-hidden="true" />Folder<input data-role="folder-input" type="file" accept="image/*" webkitdirectory multiple /></label>
+            <label class="primary-button batch-file-button" title="Import ZIP"><img src="./src/assets/zip.png" alt="" aria-hidden="true" />ZIP<input data-role="zip-input" type="file" accept=".zip,application/zip" /></label>
+          </div>
+        </div>
         <div class="control-group">
           <div class="control-header">
             <h3>Transform Stack</h3>
