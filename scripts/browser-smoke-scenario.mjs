@@ -202,6 +202,8 @@
   await wait(600);
   assert(document.querySelectorAll(".pattern-source").length >= 2, "pattern builder did not import multiple source images");
   assert(document.querySelectorAll(".pattern-object-row").length >= 2, "pattern builder did not create editable objects from imported stamps");
+  assert(document.querySelector(".pattern-layer .pattern-drag-handle"), "pattern layer drag handle missing");
+  assert(document.querySelectorAll(".pattern-layer .pattern-icon-action").length >= 2, "pattern layer icon actions missing");
   document.querySelector('[data-role="tile-size"]').value = "256";
   document.querySelector('[data-role="tile-size"]').dispatchEvent(new Event("change", { bubbles: true }));
   await wait(100);
@@ -226,6 +228,9 @@
   await wait(250);
   assert(!document.querySelector('[data-role="pattern-preview-modal"]').hidden, "pattern preview modal did not open");
   assert(document.querySelector('[data-role="pattern-preview-canvas"]').width > 0, "pattern preview modal did not render a repeated canvas");
+  assert(Boolean(document.querySelector('[data-role="pattern-boundaries"]')), "pattern preview image-boundary toggle missing");
+  document.querySelector('[data-role="pattern-boundaries"]').checked = true;
+  document.querySelector('[data-role="pattern-boundaries"]').dispatchEvent(new Event("change", { bubbles: true }));
   document.querySelector('[data-role="pattern-preview-zoom"]').value = "1.5";
   document.querySelector('[data-role="pattern-preview-zoom"]').dispatchEvent(new Event("input", { bubbles: true }));
   await wait(100);
@@ -263,6 +268,11 @@
   document.querySelector('[data-action="open-export-menu"]').click();
   await wait(100);
   assert(!document.querySelector('[data-role="export-menu"]').hidden, "pattern export menu did not open");
+  document.querySelector('[data-role="pattern-canvas"]').dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 20, clientY: 20 }));
+  await wait(100);
+  assert(document.querySelector('[data-role="export-menu"]').hidden, "pattern export menu did not close on outside click");
+  document.querySelector('[data-action="open-export-menu"]').click();
+  await wait(100);
   document.querySelector('[data-action="export-png"]').click();
   await wait(500);
   const firstScatterBytes = new Uint8Array(await window.__lastObjectUrlBlob.arrayBuffer()).join(",");
@@ -286,7 +296,7 @@
   await wait(500);
   const secondScatterBytes = new Uint8Array(await window.__lastObjectUrlBlob.arrayBuffer()).join(",");
   assert(firstScatterBytes === secondScatterBytes, "pattern scatter PNG was not deterministic for the same seed");
-  assert(document.querySelectorAll(".pattern-object-row").length >= 14, "pattern scatter did not create logical objects");
+  assert(document.querySelectorAll(".pattern-object-row").length >= 12, "pattern scatter did not create logical objects on the selected layer");
   
   return {
     failures,

@@ -1470,7 +1470,8 @@ button:focus-visible {
 
 .pattern-toolbar {
   min-height: 38px;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
   overflow-x: auto;
@@ -1479,6 +1480,16 @@ button:focus-visible {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: rgba(15, 15, 15, 0.92);
+}
+
+.pattern-toolbar-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 .pattern-toolbar button,
@@ -1492,6 +1503,17 @@ button:focus-visible {
   color: var(--text);
   padding: 4px 7px;
   font-weight: 700;
+}
+
+.pattern-toolbar .icon-button {
+  min-width: 28px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+.pattern-settings-button {
+  justify-self: end;
 }
 
 .pattern-toolbar input {
@@ -1711,7 +1733,7 @@ button:focus-visible {
 .pattern-layer {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 5px;
   min-height: 30px;
@@ -1728,6 +1750,11 @@ button:focus-visible {
   color: var(--text);
 }
 
+.pattern-layer.active {
+  border-color: rgba(255, 90, 61, 0.72);
+  background: #171111;
+}
+
 .pattern-object-row button,
 .pattern-layer button {
   min-height: 22px;
@@ -1735,6 +1762,70 @@ button:focus-visible {
   border-radius: 2px;
   background: #151515;
   color: var(--muted);
+  font-size: 10px;
+}
+
+.pattern-drag-handle {
+  min-width: 22px;
+  padding: 0 3px;
+  color: var(--muted);
+  cursor: grab;
+  letter-spacing: 0;
+}
+
+.pattern-drag-handle:active {
+  cursor: grabbing;
+}
+
+.pattern-layer.drag-over {
+  outline: 1px dashed #62a1ff;
+  outline-offset: 2px;
+}
+
+.pattern-icon-action {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  min-width: 22px;
+  padding: 0;
+}
+
+.pattern-icon-action img {
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+  filter: brightness(0.86);
+}
+
+.pattern-text-action {
+  min-width: 42px;
+  padding: 0 6px;
+  text-transform: lowercase;
+}
+
+.pattern-object-row {
+  grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
+}
+
+.pattern-object-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: #070707;
+}
+
+.pattern-layer-badge {
+  max-width: 92px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 5px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  color: #ffb0a3;
+  background: rgba(255, 45, 45, 0.10);
   font-size: 10px;
 }
 
@@ -1851,6 +1942,36 @@ button:focus-visible {
   background: rgba(0, 0, 0, 0.64);
 }
 
+.pattern-confirm-modal {
+  position: absolute;
+  inset: 10px calc(var(--rightbar-w) + 18px) 10px 10px;
+  z-index: 28;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.64);
+}
+
+.pattern-confirm-card {
+  width: min(380px, calc(100% - 24px));
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: #101010;
+  box-shadow: var(--shadow);
+  padding: 12px;
+}
+
+.pattern-confirm-card h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.pattern-confirm-card p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
 .pattern-scatter-card {
   width: min(560px, calc(100% - 24px));
   max-height: min(760px, calc(100% - 24px));
@@ -1894,6 +2015,10 @@ button:focus-visible {
   }
 
   .pattern-scatter-modal {
+    inset: 10px;
+  }
+
+  .pattern-confirm-modal {
     inset: 10px;
   }
 }

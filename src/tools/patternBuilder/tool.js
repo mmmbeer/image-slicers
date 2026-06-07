@@ -60,12 +60,15 @@ class PatternBuilder {
     this.panX = 0;
     this.panY = 0;
     this.selectedId = null;
+    this.selectedLayerId = "manual";
     this.sourceImages = new Map();
     this.drag = null;
     this.renderQueued = false;
     this.lastScatterResult = "";
     this.patternPreviewZoom = 1;
+    this.patternPreviewBoundaries = false;
     this.boundKeyDown = (event) => this.onKeyDown(event);
+    this.boundDocumentPointerDown = (event) => this.onDocumentPointerDown(event);
   }
 
   mount(root) {
@@ -78,6 +81,7 @@ class PatternBuilder {
 
   unmount() {
     document.removeEventListener("keydown", this.boundKeyDown);
+    document.removeEventListener("pointerdown", this.boundDocumentPointerDown, { capture: true });
     this.root = null;
     this.renderQueued = false;
   }
@@ -105,6 +109,7 @@ class PatternBuilder {
   reset() {
     this.scene = createScene();
     this.selectedId = null;
+    this.selectedLayerId = "manual";
     this.sourceImages.clear();
     this.lastScatterResult = "";
     this.updateAll();
@@ -145,6 +150,7 @@ class PatternBuilder {
     this.settingsModal = role(root, "settings-modal");
     this.patternPreviewModal = role(root, "pattern-preview-modal");
     this.scatterModal = role(root, "scatter-modal");
+    this.confirmModal = role(root, "confirm-modal");
     this.exportMenu = role(root, "export-menu");
     this.selectedToolbar = role(root, "selected-toolbar");
     this.inputs = {
@@ -184,6 +190,14 @@ class PatternBuilder {
     this.canvas.addEventListener("dragover", (event) => event.preventDefault());
     this.canvas.addEventListener("drop", (event) => this.onCanvasDrop(event));
     document.addEventListener("keydown", this.boundKeyDown);
+    document.addEventListener("pointerdown", this.boundDocumentPointerDown, { capture: true });
+  }
+
+  onDocumentPointerDown(event) {
+    if (!this.root?.contains(event.target)) return;
+    if (!this.exportMenu?.hidden && !event.target.closest(".pattern-side-header")) {
+      this.closeExportMenu();
+    }
   }
 
   onClick(event) {
@@ -222,6 +236,8 @@ class PatternBuilder {
     if (action === "close-scatter") this.closeScatterModal();
     if (action === "pattern-preview") this.openPatternPreview();
     if (action === "close-pattern-preview") this.closePatternPreview();
+    if (action === "confirm-cancel") this.closeConfirm();
+    if (action === "confirm-ok") this.runConfirm();
     if (action === "settings") this.openSettings();
     if (action === "close-settings") this.closeSettings();
     if (action === "fit") this.fitView();
@@ -244,6 +260,9 @@ class PatternBuilder {
     if (action === "convert-scatter") this.convertScatterToManual();
     if (action === "background-image") this.backgroundInput.click();
     if (action === "add-layer") this.addLayer();
+    if (action === "clear-layer") this.confirmClearLayer(layerId);
+    if (action === "delete-layer") this.confirmDeleteLayer(layerId);
+    if (action === "delete-object") this.deleteObject(objectId);
     if (action === "toggle-layer") this.toggleLayer(layerId, "hidden");
     if (action === "lock-layer") this.toggleLayer(layerId, "locked");
     if (action === "toggle-object-lock") this.toggleObject(objectId, "locked");
@@ -263,6 +282,11 @@ class PatternBuilder {
     if (roleName === "zoom") this.zoom = Number(target.value || 1);
     if (roleName === "pattern-preview-zoom") {
       this.patternPreviewZoom = clamp(Number(target.value || 1), 0.25, 4);
+      this.renderPatternPreview();
+      return;
+    }
+    if (roleName === "pattern-boundaries") {
+      this.patternPreviewBoundaries = target.checked;
       this.renderPatternPreview();
       return;
     }
@@ -337,7 +361,7 @@ class PatternBuilder {
       brightness: props.brightness ?? 0,
       locked: false,
       hidden: false,
-      layerId: props.layerId ?? "manual",
+      layerId: props.layerId ?? this.selectedLayerId ?? "manual",
       scatterGroupId: props.scatterGroupId ?? null,
     };
     this.scene.objects.push(object);
@@ -370,6 +394,7 @@ class PatternBuilder {
   }
 
   selectLayer(layerId) {
+    this.selectedLayerId = layerId;
     const object = this.scene.objects.find((item) => item.layerId === layerId && !item.hidden);
     this.selectedId = object?.id || null;
     this.updateAll();
@@ -594,6 +619,7 @@ class PatternBuilder {
     this.scene.objects.push(...placed);
     this.lastScatterResult = `${placed.length}/${this.scatter.count} placed`;
     this.selectedId = placed[0]?.id || this.selectedId;
+    this.selectedLayerId = layerId;
     this.mode = "manual";
     this.updateAll();
     this.notify(`Scatter generated: ${this.lastScatterResult}`);
@@ -638,6 +664,12 @@ class PatternBuilder {
     this.updateAll();
   }
 
+  deleteObject(id) {
+    if (!id) return;
+    this.scene.objects = this.scene.objects.filter((object) => object.id !== id);
+    if (this.selectedId === id) this.selectedId = null;
+  }
+
   moveSelectedLayer(direction) {
     const index = this.scene.objects.findIndex((object) => object.id === this.selectedId);
     const next = index + direction;
@@ -662,7 +694,51 @@ class PatternBuilder {
   }
 
   addLayer() {
-    this.scene.layers.push({ id: uniqueId("layer"), name: `Layer ${this.scene.layers.length + 1}`, locked: false, hidden: false });
+    const layer = { id: uniqueId("layer"), name: `Layer ${this.scene.layers.length + 1}`, locked: false, hidden: false };
+    this.scene.layers.push(layer);
+    this.selectedLayerId = layer.id;
+  }
+
+  confirmClearLayer(id) {
+    const layer = this.getLayer(id);
+    if (!layer) return;
+    this.openConfirm({
+      title: "Clear Layer",
+      message: `Remove all objects from ${layer.name}?`,
+      confirmLabel: "Clear",
+      onConfirm: () => {
+        this.scene.objects = this.scene.objects.filter((object) => object.layerId !== id);
+        if (this.getObject(this.selectedId)?.layerId === id) this.selectedId = null;
+        this.updateAll();
+      },
+    });
+  }
+
+  confirmDeleteLayer(id) {
+    const layer = this.getLayer(id);
+    if (!layer) return;
+    this.openConfirm({
+      title: "Delete Layer",
+      message: `Delete ${layer.name} and all objects on it?`,
+      confirmLabel: "Delete",
+      onConfirm: () => {
+        this.scene.objects = this.scene.objects.filter((object) => object.layerId !== id);
+        this.scene.layers = this.scene.layers.filter((item) => item.id !== id);
+        if (!this.scene.layers.length) this.scene.layers.push({ id: "manual", name: "Manual", locked: false, hidden: false });
+        this.selectedLayerId = this.scene.layers[0].id;
+        this.selectedId = null;
+        this.updateAll();
+      },
+    });
+  }
+
+  moveLayerById(sourceId, targetId) {
+    const sourceIndex = this.scene.layers.findIndex((layer) => layer.id === sourceId);
+    const targetIndex = this.scene.layers.findIndex((layer) => layer.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
+    const [layer] = this.scene.layers.splice(sourceIndex, 1);
+    this.scene.layers.splice(targetIndex, 0, layer);
+    this.updateAll();
   }
 
   renderExportCanvas() {
@@ -932,7 +1008,7 @@ class PatternBuilder {
     const size = this.scene.tile.width;
     this.inputs.tileSize.value = TILE_SIZES.includes(size) ? String(size) : "custom";
     this.inputs.customSize.value = String(size);
-    this.inputs.mode.value = this.mode;
+    if (this.inputs.mode) this.inputs.mode.value = this.mode;
     this.inputs.previewMode.value = this.previewMode;
     this.inputs.backgroundType.value = this.scene.tile.background.type;
     this.inputs.backgroundColor.value = this.scene.tile.background.color || "#000000";
@@ -964,19 +1040,59 @@ class PatternBuilder {
 
   renderLayers() {
     this.layerList.innerHTML = "";
+    if (!this.scene.layers.some((layer) => layer.id === this.selectedLayerId)) {
+      this.selectedLayerId = this.scene.layers[0]?.id || "manual";
+    }
     for (const layer of this.scene.layers) {
       const row = document.createElement("div");
-      row.className = "pattern-layer";
+      row.className = `pattern-layer${layer.id === this.selectedLayerId ? " active" : ""}`;
       row.dataset.layerId = layer.id;
-      row.innerHTML = `<strong>${escapeHtml(layer.name)}</strong><span>${this.scene.objects.filter((object) => object.layerId === layer.id).length}</span><button data-layer-id="${layer.id}" data-action="toggle-layer">${layer.hidden ? "Show" : "Hide"}</button><button data-layer-id="${layer.id}" data-action="lock-layer">${layer.locked ? "Unlock" : "Lock"}</button>`;
+      row.innerHTML = `
+        <button class="pattern-drag-handle" type="button" draggable="true" title="Drag to reorder" aria-label="Drag ${escapeHtml(layer.name)}">::</button>
+        <button class="pattern-icon-action" data-layer-id="${layer.id}" data-action="toggle-layer" type="button" title="${layer.hidden ? "Show layer" : "Hide layer"}" aria-label="${layer.hidden ? "Show layer" : "Hide layer"}"><img src="./src/assets/eye.png" alt="" aria-hidden="true" /></button>
+        <button class="pattern-icon-action" data-layer-id="${layer.id}" data-action="lock-layer" type="button" title="${layer.locked ? "Unlock layer" : "Lock layer"}" aria-label="${layer.locked ? "Unlock layer" : "Lock layer"}"><img src="./src/assets/file.png" alt="" aria-hidden="true" /></button>
+        <strong>${escapeHtml(layer.name)}</strong>
+        <button class="pattern-text-action" data-layer-id="${layer.id}" data-action="clear-layer" type="button">Clear</button>
+        <button class="pattern-icon-action" data-layer-id="${layer.id}" data-action="delete-layer" type="button" title="Delete layer" aria-label="Delete layer"><img src="./src/assets/close.png" alt="" aria-hidden="true" /></button>
+      `;
+      const grip = row.querySelector(".pattern-drag-handle");
+      grip.addEventListener("dragstart", (event) => {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/layer-id", layer.id);
+      });
+      row.addEventListener("dragover", (event) => {
+        if (!event.dataTransfer.types.includes("text/layer-id")) return;
+        event.preventDefault();
+        row.classList.add("drag-over");
+      });
+      row.addEventListener("dragleave", () => row.classList.remove("drag-over"));
+      row.addEventListener("drop", (event) => {
+        event.preventDefault();
+        row.classList.remove("drag-over");
+        this.moveLayerById(event.dataTransfer.getData("text/layer-id"), layer.id);
+      });
       this.layerList.append(row);
     }
     this.objectList.innerHTML = "";
-    for (const object of [...this.scene.objects].reverse()) {
+    const visibleObjects = [...this.scene.objects].reverse().filter((object) => object.layerId === this.selectedLayerId);
+    if (!visibleObjects.length) {
+      this.objectList.innerHTML = `<div class="field-help">No objects on the selected layer.</div>`;
+      return;
+    }
+    for (const object of visibleObjects) {
+      const layer = this.getLayer(object.layerId);
+      const source = this.getSource(object.sourceId);
       const row = document.createElement("div");
       row.className = `pattern-object-row${object.id === this.selectedId ? " active" : ""}`;
       row.dataset.objectId = object.id;
-      row.innerHTML = `<span>${escapeHtml(object.name)}</span><button data-object-id="${object.id}" data-action="toggle-object-hide">${object.hidden ? "Show" : "Hide"}</button><button data-object-id="${object.id}" data-action="toggle-object-lock">${object.locked ? "Unlock" : "Lock"}</button>`;
+      row.innerHTML = `
+        <button class="pattern-icon-action" data-object-id="${object.id}" data-action="toggle-object-hide" type="button" title="${object.hidden ? "Show object" : "Hide object"}" aria-label="${object.hidden ? "Show object" : "Hide object"}"><img src="./src/assets/eye.png" alt="" aria-hidden="true" /></button>
+        <button class="pattern-icon-action" data-object-id="${object.id}" data-action="toggle-object-lock" type="button" title="${object.locked ? "Unlock object" : "Lock object"}" aria-label="${object.locked ? "Unlock object" : "Lock object"}"><img src="./src/assets/file.png" alt="" aria-hidden="true" /></button>
+        <img class="pattern-object-icon" src="${source?.dataUrl || ""}" alt="" aria-hidden="true" />
+        <span>${escapeHtml(object.name)}</span>
+        <span class="pattern-layer-badge">${escapeHtml(layer?.name || object.layerId)}</span>
+        <button class="pattern-icon-action" data-object-id="${object.id}" data-action="delete-object" type="button" title="Delete object" aria-label="Delete object"><img src="./src/assets/close.png" alt="" aria-hidden="true" /></button>
+      `;
       this.objectList.append(row);
     }
   }
@@ -1019,6 +1135,33 @@ class PatternBuilder {
     this.exportMenu.hidden = true;
   }
 
+  openConfirm({ title, message, confirmLabel, onConfirm }) {
+    this.pendingConfirm = onConfirm;
+    this.confirmModal.hidden = false;
+    this.confirmModal.innerHTML = `
+      <div class="pattern-confirm-card">
+        <h2>${escapeHtml(title)}</h2>
+        <p>${escapeHtml(message)}</p>
+        <div class="button-row">
+          <button type="button" data-action="confirm-cancel">Cancel</button>
+          <button class="primary-button" type="button" data-action="confirm-ok">${escapeHtml(confirmLabel)}</button>
+        </div>
+      </div>
+    `;
+  }
+
+  closeConfirm() {
+    this.pendingConfirm = null;
+    this.confirmModal.hidden = true;
+    this.confirmModal.innerHTML = "";
+  }
+
+  runConfirm() {
+    const action = this.pendingConfirm;
+    this.closeConfirm();
+    action?.();
+  }
+
   openPatternPreview() {
     this.patternPreviewModal.hidden = false;
     this.patternPreviewModal.innerHTML = `
@@ -1027,6 +1170,7 @@ class PatternBuilder {
           <strong>Pattern Preview</strong>
           <div class="pattern-preview-controls">
             <label>Zoom <input data-role="pattern-preview-zoom" type="range" min="0.25" max="4" step="0.05" value="${this.patternPreviewZoom}" /></label>
+            <label><input data-role="pattern-boundaries" type="checkbox" ${this.patternPreviewBoundaries ? "checked" : ""} /> Image boundary</label>
             <button type="button" data-action="close-pattern-preview">Close</button>
           </div>
         </div>
@@ -1075,6 +1219,11 @@ class PatternBuilder {
           scale,
           helpers: false,
         });
+        if (this.patternPreviewBoundaries) {
+          ctx.strokeStyle = "rgba(255,255,255,0.36)";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(originX + x * tile * scale + 0.5, originY + y * tile * scale + 0.5, tile * scale, tile * scale);
+        }
       }
     }
   }
@@ -1137,6 +1286,7 @@ class PatternBuilder {
       validateRecipe(recipe);
       this.scene = recipe;
       this.selectedId = null;
+      this.selectedLayerId = this.scene.layers[0]?.id || "manual";
       this.sourceImages.clear();
       await this.hydrateRecipeImages();
       this.updateAll();
@@ -1177,24 +1327,22 @@ function template(settings) {
     <div class="tool-layout pattern-builder-layout">
       <section class="editor-pane pattern-builder-editor">
         <div class="pattern-toolbar">
-          <select data-role="tile-size" title="Tile size">
-            ${TILE_SIZES.map((size) => `<option value="${size}">${size}</option>`).join("")}
-            <option value="custom">Custom</option>
-          </select>
-          <input data-role="custom-size" type="number" min="64" max="4096" step="1" title="Custom square tile size" />
-          <button type="button" data-action="import">Import Source</button>
-          <button type="button" data-action="open-scatter">Scatter</button>
-          <button type="button" data-action="pattern-preview">Pattern Preview</button>
-          <select data-role="mode" title="Mode">
-            <option value="manual">Manual</option>
-            <option value="combined">Combined</option>
-          </select>
-          <select data-role="preview-mode" title="Preview">
-            <option value="tile">Tile</option>
-            <option value="3x3">3 x 3</option>
-            <option value="5x5">5 x 5</option>
-          </select>
-          <button type="button" data-action="settings">Settings</button>
+          <div class="pattern-toolbar-main">
+            <select data-role="tile-size" title="Tile size">
+              ${TILE_SIZES.map((size) => `<option value="${size}">${size}</option>`).join("")}
+              <option value="custom">Custom</option>
+            </select>
+            <input data-role="custom-size" type="number" min="64" max="4096" step="1" title="Custom square tile size" />
+            <button type="button" data-action="import">Import Source</button>
+            <button type="button" data-action="open-scatter">Scatter</button>
+            <button type="button" data-action="pattern-preview">Pattern Preview</button>
+            <select data-role="preview-mode" title="Preview">
+              <option value="tile">Tile</option>
+              <option value="3x3">3 x 3</option>
+              <option value="5x5">5 x 5</option>
+            </select>
+          </div>
+          <button class="icon-button pattern-settings-button" type="button" data-action="settings" title="Pattern settings" aria-label="Pattern settings"><img src="./src/assets/settings.png" alt="" aria-hidden="true" /></button>
         </div>
         <div class="pattern-canvas-shell ${settings.checkerboard ? "show-transparency" : ""}">
           <canvas data-role="pattern-canvas" width="960" height="640"></canvas>
@@ -1207,6 +1355,7 @@ function template(settings) {
         <div class="pattern-settings-modal" data-role="settings-modal" hidden></div>
         <div class="pattern-preview-modal" data-role="pattern-preview-modal" hidden></div>
         <div class="pattern-scatter-modal" data-role="scatter-modal" hidden></div>
+        <div class="pattern-confirm-modal" data-role="confirm-modal" hidden></div>
       </section>
       <aside class="settings-pane pattern-options-pane">
         <div class="pattern-side-header">
@@ -1258,9 +1407,11 @@ function template(settings) {
           <div data-role="pattern-options"></div>
         </div>
         <div class="control-group">
-          <h3>Layers</h3>
+          <div class="control-header">
+            <h3>Layers</h3>
+            <button class="icon-button" type="button" data-action="add-layer" title="Add layer" aria-label="Add layer"><img src="./src/assets/plus.png" alt="" aria-hidden="true" /></button>
+          </div>
           <div class="pattern-layer-list" data-role="layer-list"></div>
-          <div class="button-row"><button type="button" data-action="add-layer">Add layer</button></div>
         </div>
         <div class="control-group">
           <h3>Objects</h3>
@@ -1358,7 +1509,7 @@ function createScene() {
     sources: [],
     objects: [],
     scatterGroups: [],
-    layers: [{ id: "manual", name: "Manual Objects", locked: false, hidden: false }],
+    layers: [{ id: "manual", name: "Manual", locked: false, hidden: false }],
   };
 }
 
