@@ -1,4 +1,4 @@
-import { STAGE_SIZE } from "./constants.js";
+import { STAGE_CANVAS_SIZE } from "./constants.js";
 
 export function iconSheetTemplate() {
   return `
@@ -9,7 +9,7 @@ export function iconSheetTemplate() {
           <span data-role="source-info">No image loaded</span>
         </div>
         <div class="canvas-stage">
-          <div data-role="konva-stage" style="width:${STAGE_SIZE}px; height:${STAGE_SIZE}px;"></div>
+          <div data-role="konva-stage" style="width:${STAGE_CANVAS_SIZE}px; height:${STAGE_CANVAS_SIZE}px;"></div>
           <canvas data-role="grid-preview" hidden></canvas>
           <div class="grid-zoom-popover" data-role="grid-zoom-popover" hidden>
             <div class="range-control">

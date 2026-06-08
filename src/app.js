@@ -18,6 +18,7 @@ registerTool(backgroundRemoverTool);
 registerTool(patternBuilderTool);
 
 const nav = document.getElementById("toolNav");
+const toolSelect = document.getElementById("toolSelect");
 const root = document.getElementById("toolRoot");
 const fileInput = document.getElementById("fileInput");
 const resetButton = document.getElementById("resetButton");
@@ -33,6 +34,7 @@ const statusFile = document.getElementById("statusFile");
 const statusDimensions = document.getElementById("statusDimensions");
 const statusExports = document.getElementById("statusExports");
 const statusMode = document.getElementById("statusMode");
+const statusbar = document.querySelector(".statusbar");
 
 let activeTool = null;
 let activeInstance = null;
@@ -71,6 +73,7 @@ function notify(message) {
 
 function renderNav() {
   nav.innerHTML = "";
+  if (toolSelect) toolSelect.innerHTML = "";
   for (const tool of getTools()) {
     const button = document.createElement("button");
     button.type = "button";
@@ -80,6 +83,13 @@ function renderNav() {
     button.title = tool.name;
     button.addEventListener("click", () => selectTool(tool.id));
     nav.append(button);
+
+    if (toolSelect) {
+      const option = document.createElement("option");
+      option.value = tool.id;
+      option.textContent = tool.name;
+      toolSelect.append(option);
+    }
   }
 }
 
@@ -89,8 +99,10 @@ function selectTool(id) {
 
   activeInstance?.unmount?.();
   root.innerHTML = "";
+  root.classList.remove("sidebar-open");
   closeCanvasSettings();
   closeExportPreviewModal();
+  exportPreviewDock?.remove();
   exportPreviewDock = null;
   activeTool = nextTool;
   updateToolUrl(activeTool.id);
@@ -98,6 +110,7 @@ function selectTool(id) {
   activeInstance = activeTool.create(context);
   if (activeToolName) activeToolName.textContent = activeTool.name;
   if (activeToolDescription) activeToolDescription.textContent = activeTool.description;
+  if (toolSelect) toolSelect.value = activeTool.id;
 
   for (const button of nav.querySelectorAll("button")) {
     button.classList.toggle("active", button.dataset.toolId === activeTool.id);
@@ -174,6 +187,23 @@ function decorateMountedTool() {
     settingsPane.prepend(header);
   }
 
+  const layout = root.querySelector(".tool-layout");
+  if (layout && settingsPane && !root.querySelector("[data-action='toggle-sidebar']")) {
+    const button = document.createElement("button");
+    button.className = "icon-button sidebar-toggle";
+    button.type = "button";
+    button.dataset.action = "toggle-sidebar";
+    button.title = "Show tool settings";
+    button.setAttribute("aria-label", "Show tool settings");
+    button.innerHTML = `<img src="${assetIcon("down-chevron")}" alt="" aria-hidden="true" />`;
+    button.addEventListener("click", () => {
+      root.classList.toggle("sidebar-open");
+      syncSidebarToggle();
+    });
+    root.append(button);
+    syncSidebarToggle();
+  }
+
   const firstTitle = root.querySelector(".editor-pane .pane-title");
   if (firstTitle && !firstTitle.querySelector("[data-action='canvas-settings']")) {
     const button = document.createElement("button");
@@ -192,6 +222,14 @@ function decorateMountedTool() {
 
   decorateResultPanels();
   applyCanvasHelperSettings();
+}
+
+function syncSidebarToggle() {
+  const button = root.querySelector("[data-action='toggle-sidebar']");
+  if (!button) return;
+  const open = root.classList.contains("sidebar-open");
+  button.title = open ? "Hide tool settings" : "Show tool settings";
+  button.setAttribute("aria-label", button.title);
 }
 
 function decorateResultPanels() {
@@ -339,6 +377,7 @@ function refreshExportPreviewDock() {
     exportPreviewDock.querySelector("[data-action='toggle-export-preview']").addEventListener("click", () => {
       exportPreviewDock.classList.toggle("expanded");
       syncExportPreviewToggleIcon();
+      placeExportPreviewDock();
       refreshExportPreviewDock();
     });
     exportPreviewDock.querySelector("[data-action='large-export-preview']").addEventListener("click", openExportPreviewModal);
@@ -350,8 +389,18 @@ function refreshExportPreviewDock() {
     || `${getExportItems().length} files`;
   exportPreviewDock.querySelector("[data-role='export-preview-title']").textContent = title;
   exportPreviewDock.querySelector("[data-role='export-preview-count']").textContent = count;
+  placeExportPreviewDock();
   renderExportPreviewBody(exportPreviewDock.querySelector(".export-preview-body"), sources, exportPreviewDock.classList.contains("expanded") ? "expanded" : "collapsed");
   syncExportPreviewToggleIcon();
+}
+
+function placeExportPreviewDock() {
+  if (!exportPreviewDock) return;
+  const expanded = exportPreviewDock.classList.contains("expanded");
+  const target = expanded ? root : statusbar;
+  if (target && exportPreviewDock.parentElement !== target) {
+    target.prepend(exportPreviewDock);
+  }
 }
 
 function renderExportPreviewBody(container, sources, sizeMode) {
@@ -409,6 +458,10 @@ fileInput.addEventListener("change", () => {
   const file = fileInput.files?.[0];
   if (file) loadFile(file);
   fileInput.value = "";
+});
+
+toolSelect?.addEventListener("change", () => {
+  selectTool(toolSelect.value);
 });
 
 resetButton.addEventListener("click", () => {

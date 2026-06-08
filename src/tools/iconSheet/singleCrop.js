@@ -1,4 +1,4 @@
-import { STAGE_SIZE } from "./constants.js";
+import { STAGE_FRAME_ORIGIN, STAGE_SIZE } from "./constants.js";
 
 const HANDLE = 10;
 
@@ -32,8 +32,8 @@ export function updateSingleCropOverlay(tool) {
 export function getSingleCropStageRect(tool) {
   const crop = tool.singleCrop;
   return {
-    x: STAGE_SIZE * crop.left,
-    y: STAGE_SIZE * crop.top,
+    x: STAGE_FRAME_ORIGIN + STAGE_SIZE * crop.left,
+    y: STAGE_FRAME_ORIGIN + STAGE_SIZE * crop.top,
     width: STAGE_SIZE * Math.max(0.01, 1 - crop.left - crop.right),
     height: STAGE_SIZE * Math.max(0.01, 1 - crop.top - crop.bottom),
   };
@@ -51,10 +51,12 @@ function makeHandle(tool, edge) {
   });
   handle.on("dragmove", () => {
     const pos = handle.position();
-    if (edge === "left") tool.setSingleCropEdge("left", pos.x / STAGE_SIZE);
-    if (edge === "right") tool.setSingleCropEdge("right", 1 - (pos.x + HANDLE / 2) / STAGE_SIZE);
-    if (edge === "top") tool.setSingleCropEdge("top", pos.y / STAGE_SIZE);
-    if (edge === "bottom") tool.setSingleCropEdge("bottom", 1 - (pos.y + HANDLE / 2) / STAGE_SIZE);
+    const frameX = pos.x - STAGE_FRAME_ORIGIN;
+    const frameY = pos.y - STAGE_FRAME_ORIGIN;
+    if (edge === "left") tool.setSingleCropEdge("left", frameX / STAGE_SIZE);
+    if (edge === "right") tool.setSingleCropEdge("right", 1 - (frameX + HANDLE / 2) / STAGE_SIZE);
+    if (edge === "top") tool.setSingleCropEdge("top", frameY / STAGE_SIZE);
+    if (edge === "bottom") tool.setSingleCropEdge("bottom", 1 - (frameY + HANDLE / 2) / STAGE_SIZE);
     updateSingleCropOverlay(tool);
     tool.scheduleRender();
   });

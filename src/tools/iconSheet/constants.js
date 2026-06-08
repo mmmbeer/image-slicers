@@ -1,1 +1,4 @@
 export const STAGE_SIZE = 512;
+export const STAGE_PADDING = 128;
+export const STAGE_CANVAS_SIZE = STAGE_SIZE + STAGE_PADDING * 2;
+export const STAGE_FRAME_ORIGIN = STAGE_PADDING;

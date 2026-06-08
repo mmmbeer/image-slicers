@@ -1,4 +1,4 @@
-import { STAGE_SIZE } from "./constants.js";
+import { STAGE_CANVAS_SIZE, STAGE_FRAME_ORIGIN, STAGE_SIZE } from "./constants.js";
 import { applyCropToRects, resetCrop } from "./crop.js";
 import { setupSingleCrop, updateSingleCropOverlay } from "./singleCrop.js";
 import { syncRangePairs } from "../../ui/dom.js";
@@ -10,20 +10,36 @@ export function setupKonva(tool) {
     return;
   }
 
-  tool.stage = new window.Konva.Stage({ container: tool.stageContainer, width: STAGE_SIZE, height: STAGE_SIZE });
+  tool.stage = new window.Konva.Stage({ container: tool.stageContainer, width: STAGE_CANVAS_SIZE, height: STAGE_CANVAS_SIZE });
   tool.layer = new window.Konva.Layer();
   tool.guideLayer = new window.Konva.Layer();
   tool.stage.add(tool.layer);
   tool.stage.add(tool.guideLayer);
   tool.guideLayer.add(new window.Konva.Rect({
-    x: 0, y: 0, width: STAGE_SIZE, height: STAGE_SIZE, stroke: "#7ed0ff", strokeWidth: 2, listening: false,
+    x: STAGE_FRAME_ORIGIN,
+    y: STAGE_FRAME_ORIGIN,
+    width: STAGE_SIZE,
+    height: STAGE_SIZE,
+    stroke: "#7ed0ff",
+    strokeWidth: 2,
+    listening: false,
   }));
   tool.guideLayer.add(new window.Konva.Line({
-    points: [STAGE_SIZE / 2, 0, STAGE_SIZE / 2, STAGE_SIZE],
+    points: [
+      STAGE_FRAME_ORIGIN + STAGE_SIZE / 2,
+      STAGE_FRAME_ORIGIN,
+      STAGE_FRAME_ORIGIN + STAGE_SIZE / 2,
+      STAGE_FRAME_ORIGIN + STAGE_SIZE,
+    ],
     stroke: "rgba(126,208,255,0.72)", strokeWidth: 1, dash: [6, 6], listening: false,
   }));
   tool.guideLayer.add(new window.Konva.Line({
-    points: [0, STAGE_SIZE / 2, STAGE_SIZE, STAGE_SIZE / 2],
+    points: [
+      STAGE_FRAME_ORIGIN,
+      STAGE_FRAME_ORIGIN + STAGE_SIZE / 2,
+      STAGE_FRAME_ORIGIN + STAGE_SIZE,
+      STAGE_FRAME_ORIGIN + STAGE_SIZE / 2,
+    ],
     stroke: "rgba(126,208,255,0.72)", strokeWidth: 1, dash: [6, 6], listening: false,
   }));
   tool.transformer = new window.Konva.Transformer({
@@ -44,8 +60,8 @@ export function loadKonvaImage(tool) {
   tool.konvaImage = node;
   const fit = Math.min(STAGE_SIZE / tool.asset.width, STAGE_SIZE / tool.asset.height);
   node.setAttrs({
-    x: STAGE_SIZE / 2,
-    y: STAGE_SIZE / 2,
+    x: STAGE_FRAME_ORIGIN + STAGE_SIZE / 2,
+    y: STAGE_FRAME_ORIGIN + STAGE_SIZE / 2,
     width: tool.asset.width,
     height: tool.asset.height,
     offsetX: tool.asset.width / 2,
@@ -120,7 +136,7 @@ export function rotateSingle90(tool) {
 
 export function centerSingle(tool) {
   if (!tool.konvaImage) return;
-  tool.konvaImage.position({ x: STAGE_SIZE / 2, y: STAGE_SIZE / 2 });
+  tool.konvaImage.position({ x: STAGE_FRAME_ORIGIN + STAGE_SIZE / 2, y: STAGE_FRAME_ORIGIN + STAGE_SIZE / 2 });
   tool.layer.batchDraw();
   tool.render();
 }
@@ -128,7 +144,13 @@ export function centerSingle(tool) {
 export function resetSingleTransform(tool) {
   if (!tool.konvaImage || !tool.asset) return;
   const fit = Math.min(STAGE_SIZE / tool.asset.width, STAGE_SIZE / tool.asset.height);
-  tool.konvaImage.setAttrs({ x: STAGE_SIZE / 2, y: STAGE_SIZE / 2, rotation: 0, scaleX: fit, scaleY: fit });
+  tool.konvaImage.setAttrs({
+    x: STAGE_FRAME_ORIGIN + STAGE_SIZE / 2,
+    y: STAGE_FRAME_ORIGIN + STAGE_SIZE / 2,
+    rotation: 0,
+    scaleX: fit,
+    scaleY: fit,
+  });
   tool.inputs.scale.value = String(fit.toFixed(2));
   tool.inputs.rotation.value = "0";
   tool.inputs.brightness.value = "0";
@@ -155,7 +177,13 @@ export function renderSingleToCanvas(tool, canvas, size) {
     tool.guideLayer.visible(false);
     tool.stage.draw();
     const context = canvas.getContext("2d");
-    const exportCanvas = tool.stage.toCanvas({ pixelRatio: size / STAGE_SIZE });
+    const exportCanvas = tool.stage.toCanvas({
+      x: STAGE_FRAME_ORIGIN,
+      y: STAGE_FRAME_ORIGIN,
+      width: STAGE_SIZE,
+      height: STAGE_SIZE,
+      pixelRatio: size / STAGE_SIZE,
+    });
     const cropped = applyCropToRects(
       { x: 0, y: 0, width: size, height: size },
       { x: 0, y: 0, width: size, height: size },

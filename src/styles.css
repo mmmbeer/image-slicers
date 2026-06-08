@@ -21,6 +21,7 @@
   --topbar-h: 56px;
   --statusbar-h: 28px;
   --rightbar-w: 336px;
+  --mobile-sidebar-w: min(330px, 86vw);
   --control-h: 32px;
 }
 
@@ -64,9 +65,10 @@ button:disabled {
 
 .app-shell {
   height: 100vh;
+  height: 100dvh;
   min-height: 0;
   display: grid;
-  grid-template-rows: var(--topbar-h) minmax(0, 1fr) var(--statusbar-h);
+  grid-template-rows: var(--topbar-h) minmax(0, 1fr) auto;
   background:
     radial-gradient(circle at 15% 0, rgba(255, 45, 45, 0.10), transparent 28%),
     radial-gradient(circle at 84% 10%, rgba(255, 90, 61, 0.07), transparent 24%),
@@ -74,6 +76,9 @@ button:disabled {
 }
 
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
   min-width: 0;
   height: var(--topbar-h);
   border-bottom: 1px solid var(--line);
@@ -83,6 +88,10 @@ button:disabled {
   align-items: center;
   gap: 10px;
   padding: 0 10px;
+}
+
+.tool-select-wrap {
+  display: none;
 }
 
 .brand {
@@ -278,6 +287,7 @@ button:disabled {
 .workspace {
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .tool-host {
@@ -298,8 +308,13 @@ button:disabled {
 }
 
 .tool-root {
+  position: relative;
   height: 100%;
   min-height: 0;
+}
+
+.sidebar-toggle {
+  display: none;
 }
 
 .empty-state {
@@ -1327,9 +1342,10 @@ button:focus-visible {
 
 .statusbar {
   min-width: 0;
-  height: var(--statusbar-h);
+  min-height: var(--statusbar-h);
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   overflow: hidden;
   border-top: 1px solid var(--line);
   background: #070707;
@@ -1351,6 +1367,27 @@ button:focus-visible {
   margin-left: auto;
   border-right: 0;
   color: #ffb0a3;
+}
+
+.statusbar .export-preview-dock {
+  position: static;
+  order: -1;
+  flex: 1 0 100%;
+  max-height: 96px;
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+}
+
+.statusbar .export-preview-head {
+  min-height: 30px;
+}
+
+.statusbar .export-preview-body {
+  max-height: 66px;
 }
 
 .toast {
@@ -1392,24 +1429,72 @@ button:focus-visible {
 @media (max-width: 760px) {
   :root {
     --topbar-h: 52px;
+    --statusbar-h: 22px;
   }
 
   .topbar {
     grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 4px max(6px, env(safe-area-inset-right)) 4px max(6px, env(safe-area-inset-left));
   }
 
   .brand {
-    min-width: 56px;
+    min-width: 38px;
     padding-right: 0;
     border-right: 0;
   }
 
   .brand > img {
-    width: 72px;
-    max-height: 32px;
+    width: 38px;
+    max-height: 34px;
+    content: url("./assets/logo-icon.png");
+  }
+
+  .tool-nav {
+    display: none;
+  }
+
+  .tool-select-wrap {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+
+  .tool-select-wrap span {
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .tool-select-wrap select {
+    width: 100%;
+    min-width: 0;
+    height: 30px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: #0a0f16;
+    color: var(--text);
+    padding: 4px 26px 4px 8px;
+    font-weight: 760;
   }
 
   .active-tool {
+    display: none;
+  }
+
+  .toolbar {
+    gap: 2px;
+  }
+
+  .toolbar .primary-button {
+    min-width: 30px;
+    height: 30px;
+    padding: 0;
+  }
+
+  .toolbar .primary-button span {
     display: none;
   }
 
@@ -1420,6 +1505,29 @@ button:focus-visible {
   }
 
   .editor-pane {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 6px;
+    border-right: 0;
+  }
+
+  .pane-title {
+    min-height: 30px;
+    padding: 4px 6px;
+  }
+
+  .pane-title h2,
+  .panel h3 {
+    font-size: 11px;
+  }
+
+  .pane-title span {
+    font-size: 10px;
+  }
+
+  .canvas-stage {
+    min-height: 0;
+    border-left: 0;
     border-right: 0;
   }
 
@@ -1428,13 +1536,122 @@ button:focus-visible {
     top: 0;
     right: 0;
     bottom: 0;
-    width: min(330px, 86vw);
-    z-index: 10;
+    width: var(--mobile-sidebar-w);
+    z-index: 30;
     box-shadow: var(--shadow);
+    transform: translateX(100%);
+    transition: transform 180ms ease;
+    will-change: transform;
+  }
+
+  .tool-root.sidebar-open .settings-pane {
+    transform: translateX(0);
+  }
+
+  .sidebar-toggle {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    z-index: 32;
+    display: inline-grid;
+    width: 30px;
+    height: 46px;
+    min-width: 30px;
+    min-height: 46px;
+    border: 1px solid var(--line-strong);
+    border-right: 0;
+    border-radius: var(--radius) 0 0 var(--radius);
+    background: rgba(13, 13, 13, 0.98);
+    box-shadow: var(--shadow);
+    transform: translateY(-50%);
+  }
+
+  .sidebar-toggle img {
+    transform: rotate(90deg);
+  }
+
+  .tool-root.sidebar-open .sidebar-toggle {
+    right: var(--mobile-sidebar-w);
+  }
+
+  .tool-root.sidebar-open .sidebar-toggle img {
+    transform: rotate(-90deg);
   }
 
   .empty-state {
-    inset: 10px;
+    inset: 6px;
+  }
+
+  .empty-state h2 {
+    font-size: 15px;
+  }
+
+  .empty-state p {
+    max-width: 280px;
+    font-size: 12px;
+  }
+
+  .export-preview-dock,
+  .result-slideout {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 28;
+    max-height: min(62vh, 520px);
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: var(--radius) var(--radius) 0 0;
+    transform: translateY(calc(100% - 34px));
+    transition: transform 180ms ease;
+  }
+
+  .export-preview-dock.expanded,
+  .result-slideout.open {
+    transform: translateY(0);
+  }
+
+  .export-preview-head,
+  .result-slideout-head {
+    min-height: 34px;
+    padding: 4px 7px;
+  }
+
+  .export-preview-body {
+    max-height: calc(min(62vh, 520px) - 34px);
+    overflow-y: auto;
+  }
+
+  .export-preview-dock:not(.expanded) .export-preview-body {
+    overflow: hidden;
+  }
+
+  .export-preview-grid-small.preview-grid,
+  .export-preview-grid-small.thumb-grid {
+    grid-template-columns: repeat(auto-fill, minmax(48px, 48px));
+    grid-auto-rows: 42px;
+  }
+
+  .export-preview-grid-large.preview-grid,
+  .export-preview-grid-large.thumb-grid,
+  .result-slideout-grid.thumb-grid,
+  .result-slideout-grid.preview-grid {
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  }
+
+  .statusbar {
+    min-height: var(--statusbar-h);
+    height: auto;
+    font-size: 10px;
+  }
+
+  .statusbar span {
+    padding: 0 6px;
+  }
+
+  .statusbar span:nth-child(2),
+  .statusbar span:nth-child(3) {
+    display: none;
   }
 }
 
