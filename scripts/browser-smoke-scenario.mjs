@@ -75,6 +75,26 @@
   document.querySelector('[data-action="toggle-export-preview"]').click();
   await wait(150);
 
+  document.querySelector('[data-tool-id="background-remover"]').click();
+  await wait(300);
+  const backgroundCanvas = document.querySelector('[data-role="background-preview"]');
+  const backgroundRect = backgroundCanvas.getBoundingClientRect();
+  const samplePoint = {
+    x: backgroundRect.left + ((backgroundCanvas.width - 96) / 2 + 4) / backgroundCanvas.width * backgroundRect.width,
+    y: backgroundRect.top + ((backgroundCanvas.height - 72) / 2 + 4) / backgroundCanvas.height * backgroundRect.height,
+  };
+  backgroundCanvas.dispatchEvent(new MouseEvent("click", {
+    bubbles: true,
+    cancelable: true,
+    clientX: samplePoint.x,
+    clientY: samplePoint.y,
+  }));
+  await wait(400);
+  assert(document.getElementById("statusFile").textContent.includes("smoke-frame_transparent.png"), "background remover did not publish its edited image as the current asset");
+  document.querySelector('[data-tool-id="icon-sheet"]').click();
+  await wait(500);
+  assert(document.querySelector('[data-role="prefix"]').value.includes("smoke-frame_transparent"), "icon sheet did not receive the edited image from the background remover");
+
   document.querySelector('[data-tool-id="nine-slicer"]').click();
   await wait(500);
   assert(location.hash === "#nine-slicer", "tool URL hash did not update after tool change");

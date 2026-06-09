@@ -60,6 +60,8 @@ const context = {
   downloadManager,
   canvasUtils,
   notify,
+  createAssetFromCanvas,
+  setCurrentAsset,
   setDirtyState: updateExportState,
   setEmptyStateHidden(hidden) {
     emptyState.classList.toggle("hidden", hidden);
@@ -148,6 +150,27 @@ async function loadFile(file) {
   } catch (error) {
     notify(error.message);
   }
+}
+
+function createAssetFromCanvas(canvas, options = {}) {
+  const image = canvasUtils.copyCanvas(canvas);
+  return {
+    file: null,
+    fileName: options.fileName || currentAsset?.fileName || "image.png",
+    type: options.type || "image/png",
+    image,
+    width: image.width,
+    height: image.height,
+    sourceFileName: options.sourceFileName || currentAsset?.sourceFileName || currentAsset?.fileName || null,
+  };
+}
+
+function setCurrentAsset(asset) {
+  if (!asset) return;
+  currentAsset = asset;
+  emptyState.classList.add("hidden");
+  updateStatus();
+  applyCanvasHelperSettings();
 }
 
 function getExportItems() {

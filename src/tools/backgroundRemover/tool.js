@@ -212,6 +212,7 @@ class BackgroundRemover {
     setWarning(this.warning, this.samples.length ? [] : "Click a background pixel in the preview to create the transparency mask.");
     if (this.samples.length) this.process();
     else copyCanvas(this.sourceCanvas, this.outputCanvas);
+    this.publishCurrentAsset();
     drawFitted(this.outputCanvas, this.canvas, this.ctx);
     if (this.settings.showMask && this.samples.length && this.mask) drawFitted(this.overlayCanvas, this.canvas, this.ctx);
     this.renderZooms();
@@ -263,6 +264,19 @@ class BackgroundRemover {
 
   clearZoom(canvas) {
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  publishCurrentAsset() {
+    if (!this.context.setCurrentAsset) return;
+    if (!this.samples.length) {
+      this.context.setCurrentAsset(this.asset);
+      return;
+    }
+    this.context.setCurrentAsset(this.context.createAssetFromCanvas(this.outputCanvas, {
+      fileName: `${safeBaseName(this.asset.fileName)}_transparent.png`,
+      type: "image/png",
+      sourceFileName: this.asset.sourceFileName || this.asset.fileName,
+    }));
   }
 }
 
